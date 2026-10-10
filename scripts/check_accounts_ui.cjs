@@ -213,10 +213,18 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await userPage.locator('[name="tags"]').fill("初始标签、初始标签");
     await userPage.locator("[type=submit]").click();
     await expect(userPage.getByText("测试外链", { exact: true })).toBeVisible();
-    await expect(
-      userPage.locator('.sidebar [data-saved-tag="初始标签"]'),
-    ).toBeVisible();
+    const tagToggle = userPage.getByRole("button", { name: /^标签分类/ });
+    const initialTag = userPage.locator('.sidebar [data-saved-tag="初始标签"]');
+    await expect(tagToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(initialTag).toBeHidden();
+    await tagToggle.click();
+    await expect(tagToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(initialTag).toBeVisible();
+    await tagToggle.click();
+    await expect(tagToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(initialTag).toBeHidden();
     await userPage.reload();
+    await tagToggle.click();
     await userPage.locator('.sidebar [data-saved-tag="初始标签"]').click();
     await expect(userPage.getByText("测试外链", { exact: true })).toBeVisible();
     await expect(userPage.getByText(item.title, { exact: true })).toHaveCount(
@@ -231,10 +239,16 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await expect(
       userPage.locator(".sidebar .problem-subcategories"),
     ).toHaveCount(2);
-    await userPage.locator("[data-edit-tags]").first().click();
+    await userPage
+      .locator(".saved-entry")
+      .filter({ has: userPage.getByText(item.title, { exact: true }) })
+      .locator("[data-edit-tags]")
+      .click();
     await userPage.locator('[name="tags"]').fill("待读、技术、待读");
     await userPage.getByRole("button", { name: "保存标签" }).click();
     await expect(userPage.locator("dialog")).toHaveCount(0);
+    await expect(tagToggle).toHaveAttribute("aria-expanded", "false");
+    await tagToggle.click();
     await userPage.locator('.sidebar [data-saved-tag="待读"]').click();
     await expect(userPage.getByText(item.title, { exact: true })).toBeVisible();
     await expect(userPage.getByText("测试外链", { exact: true })).toHaveCount(
@@ -259,6 +273,7 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await expect(
       secondPage.getByText(item.title, { exact: true }),
     ).toBeVisible();
+    await secondPage.getByRole("button", { name: /^标签分类/ }).click();
     await expect(
       secondPage.locator('.sidebar [data-saved-tag="待读"]'),
     ).toBeVisible();
@@ -269,7 +284,11 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await expect(
       secondPage.getByText(item.title, { exact: true }),
     ).toBeVisible();
-    await secondPage.locator("[data-edit-tags]").first().click();
+    await secondPage
+      .locator(".saved-entry")
+      .filter({ has: secondPage.getByText(item.title, { exact: true }) })
+      .locator("[data-edit-tags]")
+      .click();
     await secondPage.locator('[name="tags"]').fill("");
     await secondPage.getByRole("button", { name: "保存标签" }).click();
     await expect(secondPage.locator("dialog")).toHaveCount(0);
