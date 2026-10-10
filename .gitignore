@@ -1,0 +1,29 @@
+# Generated frontend and local data
+node_modules/
+dist/
+knowledge-base/
+private/
+content-backups/
+content-trash/
+checks/
+.judge-venv/
+__pycache__/
+*.pyc
+*.log
+*.sqlite*
+*.db
+
+# Machine-specific settings and credentials
+config.local.json
+.env
+.env.*
+!.env.example
+link-preview-proxy.env
+
+# Historical local maintenance scripts and personal branding
+scripts/reorganize_content.py
+scripts/smoke.mjs
+scripts/verify_*.mjs
+scripts/verify_judge.py
+src/jkb-logo-v2.png
+src/jkb-logo-v2-prompt.txt

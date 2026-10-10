@@ -1,0 +1,89 @@
+.external-bookmark-dialog {
+  width: min(560px, calc(100vw - 28px));
+  max-width: none;
+  max-height: calc(100dvh - 28px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 24px;
+  box-shadow: 0 20px 70px #0003;
+}
+.external-bookmark-dialog::backdrop {
+  background: #0007;
+}
+.external-bookmark-form,
+.external-bookmark-dialog form {
+  display: grid;
+  gap: 15px;
+}
+.external-bookmark-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 3px;
+}
+.external-bookmark-heading .eyebrow {
+  margin-bottom: 4px;
+}
+.external-bookmark-heading h2 {
+  font-size: 21px;
+  margin: 0;
+}
+.external-bookmark-dialog label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.external-bookmark-dialog input,
+.external-bookmark-dialog textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.external-bookmark-dialog input:focus,
+.external-bookmark-dialog textarea:focus {
+  outline: 3px solid #d38a6044;
+  border-color: #d38a60;
+}
+.external-bookmark-error {
+  margin: 0;
+  color: #b44040;
+  font-size: 13px;
+}
+.external-bookmark-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 700px) {
+  .external-bookmark-dialog {
+    padding: 18px;
+  }
+  .external-bookmark-heading h2 {
+    font-size: 19px;
+  }
+}
+.external-bookmark-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.external-bookmark-cover {
+  max-width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.external-bookmark-cover[hidden] {
+  display: none;
+}

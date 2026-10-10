@@ -1,0 +1,8 @@
+{
+  "content_root": "./knowledge-base",
+  "notes_root": "./knowledge-base/note",
+  "host": "127.0.0.1",
+  "port": 4173,
+  "site_name": "MyKB",
+  "site_logo": "/logo.svg"
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=MyKB knowledge base
+After=network-online.target
+
+[Service]
+Type=simple
+# Replace these example paths with your installation directory.
+WorkingDirectory=/opt/mykb
+ExecStart=/usr/bin/python3 /opt/mykb/scripts/serve.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

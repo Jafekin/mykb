@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="MyKB：学习笔记、面试题、手撕题与论文" />
+    <title>MyKB</title>
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+    <link rel="stylesheet" href="/assets/katex.min.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">跳转到内容</a>
+    <header>
+      <div class="header-inner">
+        <a class="brand" href="/interview"
+          ><img
+            class="logo"
+            src="/logo.svg"
+            alt="MyKB"
+            width="40"
+            height="40"
+          />MyKB</a
+        >
+        <nav id="nav" aria-label="主导航"></nav>
+        <button class="icon-button" id="theme" aria-label="切换深浅主题">
+          ◐
+        </button>
+      </div>
+    </header>
+    <div id="app"><div class="loading">正在载入学习库…</div></div>
+    <div id="toast" role="status"></div>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

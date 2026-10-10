@@ -1,0 +1,35 @@
+{
+  "name": "mykb",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 scripts/import_content.py && node scripts/build.mjs",
+    "start": "python3 scripts/serve.py",
+    "test": "python3 scripts/run_checks.py",
+    "setup": "python3 scripts/setup.py",
+    "build:ui": "node scripts/build.mjs",
+    "format": "prettier --write \"src/**/*.{js,css,html}\" \"scripts/*.{mjs,cjs}\" \"*.json\"",
+    "format:check": "prettier --check \"src/**/*.{js,css,html}\" \"scripts/*.{mjs,cjs}\" \"*.json\""
+  },
+  "dependencies": {
+    "@toast-ui/editor": "^3.2.2",
+    "dompurify": "3.4.16",
+    "highlight.js": "^11.12.0",
+    "katex": "0.19.0",
+    "marked": "15.0.12"
+  },
+  "overrides": {
+    "dompurify": "$dompurify"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "esbuild": "0.25.5",
+    "prettier": "3.6.2"
+  },
+  "description": "A self-hosted Markdown knowledge base with accounts, permissions and private bookmarks.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}
