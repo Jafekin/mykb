@@ -1,3 +1,8 @@
+import {
+  problemCollections,
+  problemGroup,
+  problemSubcategory,
+} from "./problem-categories.js";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import katex from "katex";
@@ -152,6 +157,25 @@ let progress = getStore("progress", {}),
   externalBookmarks = getStore("externalBookmarks", []),
   index,
   byId;
+let searchText, searchVersion, searchLoading;
+async function ensureSearchIndex() {
+  const version = index.generatedAt;
+  if (searchVersion === version && searchText) return;
+  if (!searchLoading) {
+    searchLoading = (async () => {
+      const response = await fetch("/data/index.json");
+      if (!response.ok) throw Error("全文搜索暂时无法加载，请重试");
+      const full = await response.json();
+      searchText = Object.fromEntries(
+        full.items.map((item) => [item.id, item.search]),
+      );
+      searchVersion = version;
+    })().finally(() => {
+      searchLoading = null;
+    });
+  }
+  await searchLoading;
+}
 if (getStore("dark", false)) document.body.classList.add("dark");
 $("#theme").onclick = () => {
   document.body.classList.toggle("dark");
@@ -191,7 +215,7 @@ rebuildButton.onclick = async () => {
       }),
       result = await response.json();
     if (!response.ok) throw Error(result.message || "重建失败");
-    const refreshed = await fetch("/data/index.json");
+    const refreshed = await fetch("/data/index.json?view=summary");
     if (!refreshed.ok) throw Error("索引已重建，请刷新网页加载");
     index = await refreshed.json();
     byId = Object.fromEntries(index.items.map((item) => [item.id, item]));
@@ -387,14 +411,28 @@ function externalCard(item) {
 }
 function renderList(s) {
   destroyRichEditor();
-  const collections = ["专题合集", "公司合集"];
-  s.group =
-    s.section === "problems" &&
-    s.scope !== "all" &&
-    (new URL(location.href).searchParams.get("group") === "other" ||
-      (s.category && !collections.includes(s.category)))
-      ? "other"
-      : "";
+  const collections = problemCollections;
+  const requestedGroup = new URL(location.href).searchParams.get("group");
+  s.group = "";
+  if (s.section === "problems" && s.scope !== "all") {
+    if (["other", "traditional"].includes(requestedGroup))
+      s.group = requestedGroup;
+    else if (s.category === "传统算法") {
+      s.group = "traditional";
+      s.category = "";
+    } else if (s.category && !collections.includes(s.category)) {
+      s.group = baseGroupForCategory(s.category);
+    }
+  }
+  function baseGroupForCategory(category) {
+    const candidates = index.items.filter(
+      (item) => item.section === "problems" && item.category === category,
+    );
+    return candidates.length &&
+      candidates.every((item) => problemGroup(item) === "traditional")
+      ? "traditional"
+      : "other";
+  }
   const base = index.items.filter(
     (x) =>
       !x.isIndex &&
@@ -458,44 +496,58 @@ function renderList(s) {
             return true;
           })
       : () =>
-          openNewDocument(index, s.section, s.category, async (result) => {
-            const response = await fetch("/data/index.json");
-            if (!response.ok)
-              throw Error("文档已创建，索引加载失败，请刷新页面");
-            index = await response.json();
-            byId = Object.fromEntries(
-              index.items.map((item) => [item.id, item]),
-            );
-            toast(result.message);
-            go(href(byId[result.id]));
-          });
+          openNewDocument(
+            index,
+            s.section,
+            s.group === "traditional" ? "传统算法" : s.category,
+            async (result) => {
+              const response = await fetch("/data/index.json?view=summary");
+              if (!response.ok)
+                throw Error("文档已创建，索引加载失败，请刷新页面");
+              index = await response.json();
+              byId = Object.fromEntries(
+                index.items.map((item) => [item.id, item]),
+              );
+              toast(result.message);
+              go(href(byId[result.id]));
+            },
+          ).catch((error) => toast("编辑器加载失败：" + error.message));
   if (s.section === "problems" && s.scope !== "all") {
-    const others = base.filter((item) => !collections.includes(item.category));
+    const groups = [
+      ["traditional", "传统算法"],
+      ["other", "知识点合集"],
+    ];
+    const groupMenus = groups
+      .map(([group, label]) => {
+        const entries = base.filter((item) => problemGroup(item) === group);
+        const categories = [...new Set(entries.map(problemSubcategory))].sort(
+          (a, b) => a.localeCompare(b, "zh-CN"),
+        );
+        return `<button data-problem-group="${group}" class="${s.group === group && !s.category ? "active" : ""}" aria-expanded="${s.group === group}">${label}<span class="count">${entries.length}</span></button>${s.group === group ? `<div class="problem-subcategories" role="group" aria-label="${label}分类">${categories.map((category) => `<button data-category="${esc(category)}" data-category-group="${group}" class="${s.category === category ? "active" : ""}">${esc(category)}<span class="count">${entries.filter((item) => problemSubcategory(item) === category).length}</span></button>`).join("")}</div>` : ""}`;
+      })
+      .join("");
     $(".side-links").innerHTML =
-      `<button data-category="" class="${!s.category && !s.group ? "active" : ""}">全部内容<span class="count">${base.length}</span></button>${collections.map((category) => `<button data-category="${category}" class="${s.category === category ? "active" : ""}">${category}<span class="count">${base.filter((item) => item.category === category).length}</span></button>`).join("")}<button data-problem-group="other" class="${s.group === "other" && !s.category ? "active" : ""}">知识点合集<span class="count">${others.length}</span></button>${
-        s.group === "other"
-          ? `<div class="problem-subcategories" role="group" aria-label="知识点合集分类">${cats
-              .filter((category) => !collections.includes(category))
-              .map(
-                (category) =>
-                  `<button data-category="${esc(category)}" class="${s.category === category ? "active" : ""}">${esc(category)}<span class="count">${others.filter((item) => item.category === category).length}</span></button>`,
-              )
-              .join("")}</div>`
-          : ""
-      }`;
+      `<button data-category="" class="${!s.category && !s.group ? "active" : ""}">全部内容<span class="count">${base.length}</span></button>${collections.map((category) => `<button data-category="${category}" class="${s.category === category ? "active" : ""}">${category}<span class="count">${base.filter((item) => item.category === category).length}</span></button>`).join("")}${groupMenus}`;
   }
   const filter = () =>
     base.filter(
       (x) =>
-        (!s.group || !collections.includes(x.category)) &&
-        (!s.category || x.category === s.category) &&
+        (!s.group || problemGroup(x) === s.group) &&
+        (!s.category ||
+          (s.group ? problemSubcategory(x) : x.category) === s.category) &&
         (!s.difficulty || x.difficulty === s.difficulty) &&
         (!s.done || !progress[x.id]) &&
         s.q
           .toLowerCase()
           .trim()
           .split(/\s+/)
-          .every((w) => x.search.includes(w)),
+          .every((w) =>
+            (
+              searchText?.[x.id] ||
+              x.search ||
+              `${x.title} ${x.excerpt}`.toLowerCase()
+            ).includes(w),
+          ),
     );
   const filterExternal = () =>
     s.section === "saved" && (!s.category || s.category === "网络文章")
@@ -557,12 +609,14 @@ function renderList(s) {
         go("/" + (s.section === "saved" ? "interview" : s.section));
   };
   draw();
-  document
-    .querySelectorAll("[data-category]")
-    .forEach(
-      (b) =>
-        (b.onclick = () => update({ category: b.dataset.category, group: "" })),
-    );
+  document.querySelectorAll("[data-category]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        update({
+          category: b.dataset.category,
+          group: b.dataset.categoryGroup || "",
+        })),
+  );
   document
     .querySelectorAll("[data-problem-group]")
     .forEach(
@@ -577,7 +631,15 @@ function renderList(s) {
   $("#search").oninput = (e) => {
     const value = e.target.value;
     clearTimeout(timer);
-    timer = setTimeout(() => {
+    const input = e.target;
+    timer = setTimeout(async () => {
+      try {
+        if (value.trim()) await ensureSearchIndex();
+      } catch (error) {
+        toast(error.message);
+        return;
+      }
+      if (!input.isConnected || input.value !== value) return;
       s.q = value;
       s.page = 1;
       filtered = filter();
@@ -773,13 +835,17 @@ async function renderArticle(item, sequence) {
     }
   };
   if (can("edit"))
-    mountRichEditor(item, async (result) => {
-      const response = await fetch("/data/index.json");
-      index = await response.json();
-      byId = Object.fromEntries(index.items.map((x) => [x.id, x]));
-      toast(result.message);
-      go(href(byId[result.id] || item), true);
-    });
+    mountRichEditor(
+      item,
+      async (result) => {
+        const response = await fetch("/data/index.json?view=summary");
+        index = await response.json();
+        byId = Object.fromEntries(index.items.map((x) => [x.id, x]));
+        toast(result.message);
+        go(href(byId[result.id] || item), true);
+      },
+      toast,
+    );
   if (!can("edit")) $("#edit-markdown").remove();
   const deleteButton = document.createElement("button");
   deleteButton.id = "delete-document";
@@ -812,7 +878,7 @@ async function renderArticle(item, sequence) {
         }),
         result = await deleted.json();
       if (!deleted.ok) throw Error(result.message);
-      const refreshed = await fetch("/data/index.json");
+      const refreshed = await fetch("/data/index.json?view=summary");
       if (!refreshed.ok) throw Error("文档已删除，请刷新网页更新列表");
       index = await refreshed.json();
       byId = Object.fromEntries(index.items.map((x) => [x.id, x]));
@@ -930,7 +996,11 @@ async function render() {
       }
       nav(item.section);
       await renderArticle(item, sequence);
-    } else renderList(s);
+    } else {
+      if (s.q.trim()) await ensureSearchIndex();
+      if (sequence !== renderSequence) return;
+      renderList(s);
+    }
   } catch (e) {
     if (sequence === renderSequence)
       $("#app").innerHTML =
@@ -984,7 +1054,7 @@ document.addEventListener("click", async (e) => {
 });
 window.addEventListener("popstate", render);
 try {
-  const r = await fetch("/data/index.json");
+  const r = await fetch("/data/index.json?view=summary");
   if (!r.ok) throw Error("索引加载失败");
   index = await r.json();
   byId = Object.fromEntries(index.items.map((x) => [x.id, x]));

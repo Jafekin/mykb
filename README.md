@@ -95,6 +95,10 @@ cp config.example.json config.local.json
 
 在线评测使用 Linux、bubblewrap、systemd 用户服务和独立的 PyTorch 环境，包含资源与超时限制。依赖不可用时明确返回“评测环境未配置”，不会退回在宿主机直接执行提交代码。默认示例提供一道 ReLU 练习；内置评测定义覆盖 14 个算子与训练相关题型，新增题目需要匹配约定的接口和文件标识。
 
+## 自动同步与索引缓存
+
+可使用 [自动同步说明](docs/auto-sync.md) 配置知识库变化时自动提交、推送 GitHub 私有仓库，并同步重建网站索引。内容未变时直接复用缓存，打开网站不会触发重建。脚本位于 `scripts/auto_sync.py`，后台服务模板位于 `deploy/jkb-auto-sync.service.example`。
+
 ## 开发与检查
 
 ```bash

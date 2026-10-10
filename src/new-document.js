@@ -1,4 +1,4 @@
-import Editor from "@toast-ui/editor";
+import { loadEditor } from "./editor-loader.js";
 
 const labels = {
   notes: "Note",
@@ -7,7 +7,8 @@ const labels = {
   learning: "学习路径",
   papers: "最新论文",
 };
-export function openNewDocument(index, section, category, onCreated) {
+export async function openNewDocument(index, section, category, onCreated) {
+  const Editor = await loadEditor();
   const dialog = document.createElement("dialog");
   dialog.className = "new-document-dialog";
   dialog.innerHTML =

@@ -4,5 +4,10 @@
   "host": "127.0.0.1",
   "port": 4173,
   "site_name": "MyKB",
-  "site_logo": "/logo.svg"
+  "site_logo": "/logo.svg",
+  "sync_remote": "",
+  "sync_branch": "main",
+  "sync_poll_seconds": 5,
+  "sync_settle_seconds": 20,
+  "sync_retry_seconds": 60
 }

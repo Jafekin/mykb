@@ -2,8 +2,10 @@
 import argparse, collections, hashlib, json, os, re, resource, shutil, sys, subprocess, tempfile, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlsplit, unquote, urljoin
+from urllib.parse import urlsplit, unquote, urljoin, parse_qs
 import posixpath
+import gzip
+from http_compression import accepts_gzip
 import accounts
 
 from judge_tests import TESTS
@@ -37,6 +39,17 @@ def load_problems():
     return {item["id"]: item for item in data["items"] if item["section"] == "problems"}
 
 PROBLEMS = load_problems()
+PROBLEMS_REVISION = INDEX.stat().st_mtime_ns
+PROBLEMS_LOCK = threading.Lock()
+
+def cached_problems():
+    global PROBLEMS, PROBLEMS_REVISION
+    with PROBLEMS_LOCK:
+        revision = INDEX.stat().st_mtime_ns
+        if revision != PROBLEMS_REVISION:
+            PROBLEMS = load_problems()
+            PROBLEMS_REVISION = revision
+        return PROBLEMS
 
 def slug_for(item):
     name = Path(item["path"]).name
@@ -140,7 +153,7 @@ def rebuild_index():
     try:
         if not all(root.is_dir() for root, _ in SECTION_SOURCES.values()):
             return 503, {"message": "知识库源目录不可用，无法重建索引"}
-        subprocess.run([sys.executable, str(PROJECT / "scripts" / "import_content.py")], cwd=PROJECT, check=True, timeout=180, capture_output=True, text=True)
+        subprocess.run([sys.executable, str(PROJECT / "scripts" / "import_content.py"), "--force"], cwd=PROJECT, check=True, timeout=180, capture_output=True, text=True)
         global PROBLEMS
         PROBLEMS = load_problems()
         data = json.loads(INDEX.read_text(encoding="utf-8"))
@@ -234,7 +247,7 @@ def create_article(payload):
         return 201, {"ok": True, "id": article_id, "message": "文档已创建并保存到源目录"}
 
 def run_judge(problem_id, source):
-    item = PROBLEMS.get(problem_id)
+    item = cached_problems().get(problem_id)
     if not item:
         return 404, {"status":"invalid_problem","message":"题目不存在"}
     slug = slug_for(item)
@@ -302,7 +315,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def json_response(self, status, payload):
         body=json.dumps(payload,ensure_ascii=False).encode()
+        compressed = len(body) >= 1024 and accepts_gzip(self.headers.get('Accept-Encoding'))
+        if compressed: body = gzip.compress(body, compresslevel=4)
         self.send_response(status)
+        if compressed: self.send_header('Content-Encoding', 'gzip')
+        self.send_header('Vary', 'Accept-Encoding')
         self.send_header("Content-Type","application/json; charset=utf-8")
         self.send_header("Content-Length",str(len(body)))
         self.end_headers()
@@ -316,9 +333,11 @@ class Handler(SimpleHTTPRequestHandler):
         if not user: self.json_response(401, {"message":"请先登录"})
         return user
 
-    def content_index(self, user):
+    def content_index(self, user, summary=False):
         data=json.loads(INDEX.read_text(encoding='utf-8'))
         data['items']=[item for item in data['items'] if accounts.visible(user,item)]
+        if summary:
+            data['items']=[{key:value for key,value in item.items() if key != 'search'} for item in data['items']]
         ids={item['id'] for item in data['items']}
         data['paths']={key:value for key,value in data['paths'].items() if value in ids}
         if not user['admin']:data['sources']=[]
@@ -420,6 +439,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.json_response(404, {"message": "Not found"})
 
     def do_GET(self):
+        summary_index = parse_qs(urlsplit(self.path).query).get('view') == ['summary']
         path=self.request_path()
         self.path=path
         public=path in ('/api/config','/','/login','/index.html','/style.css','/favicon.svg','/logo.svg','/jkb-logo-v2.png','/interview','/problems','/learning','/papers','/notes','/saved') or path.startswith('/assets/')
@@ -435,7 +455,7 @@ class Handler(SimpleHTTPRequestHandler):
             data=json.loads(INDEX.read_text(encoding='utf-8'))
             catalog=sorted({(item['section'],item['category']) for item in data['items']})
             self.json_response(200,{'users':accounts.users(),'categories':[{'section':section,'category':category,'key':section+'::'+category} for section,category in catalog]});return
-        if path=='/data/index.json':self.json_response(200,self.content_index(user));return
+        if path=='/data/index.json':self.json_response(200,self.content_index(user,summary=summary_index));return
         if path.startswith('/data/articles/'):
             article_id=path.removeprefix('/data/articles/').removesuffix('.json')
             if not path.endswith('.json') or not self.allowed_article(user,article_id):self.json_response(403,{'message':'没有访问此文档的权限'});return
@@ -483,6 +503,35 @@ class Handler(SimpleHTTPRequestHandler):
             self.path="/index.html"
         if self.command=='HEAD':super().do_HEAD()
         else:super().do_GET()
+
+    def send_head(self):
+        # Public text assets are precompressed by the build; the browser can
+        # revalidate and reuse them without downloading the body again.
+        target = Path(self.translate_path(self.path))
+        compressed = Path(str(target) + '.gz')
+        if (target.suffix not in ('.js', '.css', '.html') or
+                not accepts_gzip(self.headers.get('Accept-Encoding')) or
+                not target.is_file() or not compressed.is_file() or
+                compressed.stat().st_mtime_ns < target.stat().st_mtime_ns):
+            return super().send_head()
+        stat = compressed.stat()
+        etag = '"' + str(stat.st_mtime_ns) + '-' + str(stat.st_size) + '-gzip"'
+        if etag in [tag.strip() for tag in self.headers.get('If-None-Match', '').split(',')]:
+            self.send_response(304)
+            self.send_header('ETag', etag)
+            self.send_header('Vary', 'Accept-Encoding')
+            self.end_headers()
+            return None
+        handle = compressed.open('rb')
+        self.send_response(200)
+        self.send_header('Content-Type', self.guess_type(str(target)))
+        self.send_header('Content-Encoding', 'gzip')
+        self.send_header('Vary', 'Accept-Encoding')
+        self.send_header('ETag', etag)
+        self.send_header('Last-Modified', self.date_time_string(stat.st_mtime))
+        self.send_header('Content-Length', str(stat.st_size))
+        self.end_headers()
+        return handle
 
     def do_HEAD(self):
         self.do_GET()

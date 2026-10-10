@@ -1,6 +1,5 @@
-import Editor from "@toast-ui/editor";
+import { loadEditor } from "./editor-loader.js";
 import "@toast-ui/editor/dist/toastui-editor.css";
-import "@toast-ui/editor/dist/i18n/zh-cn";
 import "./rich-editor.css";
 
 let current;
@@ -11,11 +10,11 @@ export function destroyRichEditor() {
   current?.destroy();
   current = null;
 }
-export function mountRichEditor(item, onSaved) {
+export function mountRichEditor(item, onSaved, onError) {
   const panel = document.querySelector("#markdown-editor"),
     toggle = document.querySelector("#edit-markdown");
   panel.innerHTML =
-    '<div class="markdown-editor-head"><div><h2>编辑文章</h2><p>直接编辑正文，保存到原始 Markdown 文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="editor-mode">Markdown 源码</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><div id="rich-editor"></div><p class="markdown-status" id="markdown-status" role="status">正在读取源文件…</p>';
+    '<div class="markdown-editor-head"><div><h2>编辑文章</h2><p>直接编辑正文，保存到原始 Markdown 文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="editor-mode">Markdown 源码</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><p class="markdown-status" id="markdown-status" role="status">正在读取源文件…</p><div id="rich-editor"></div>';
   const status = panel.querySelector("#markdown-status"),
     save = panel.querySelector("#save-markdown"),
     mode = panel.querySelector("#editor-mode");
@@ -50,8 +49,12 @@ export function mountRichEditor(item, onSaved) {
     opening = true;
     save.disabled = true;
     try {
-      const response = await fetch(`/api/articles/${item.id}`),
-        data = await response.json();
+      status.textContent = "正在加载编辑器…";
+      const [response, Editor] = await Promise.all([
+        fetch(`/api/articles/${item.id}`),
+        loadEditor(),
+      ]);
+      const data = await response.json();
       if (!response.ok) throw Error(data.message || "无法读取源文件");
       if (!panel.isConnected) return;
       revision = data.revision;
@@ -95,6 +98,7 @@ export function mountRichEditor(item, onSaved) {
       };
     } catch (error) {
       status.textContent = "打开失败：" + error.message;
+      onError?.(status.textContent);
     } finally {
       opening = false;
       save.disabled = !current;
@@ -124,7 +128,8 @@ export function mountRichEditor(item, onSaved) {
       dirty = false;
       await onSaved(result);
     } catch (error) {
-      status.textContent = error.message;
+      status.textContent = "保存失败：" + error.message;
+      onError?.(status.textContent);
     } finally {
       saving = false;
       save.disabled = false;

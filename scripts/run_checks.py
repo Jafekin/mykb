@@ -22,7 +22,22 @@ with tempfile.TemporaryDirectory(prefix='mykb-checks-') as temporary:
         sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     env['SITE_URL']=f'http://127.0.0.1:{port}'
     def run(*args):subprocess.run(args,cwd=root,env=env,check=True)
+    run('python3','scripts/check_markdown_title.py')
+    run('python3','scripts/check_content_cache.py')
+    run('python3','scripts/check_auto_sync.py')
     run('python3','scripts/setup.py')
+    for relative, title in (
+        ('传统算法/基础算法.md', '传统基础算法'),
+        ('传统算法/滑动窗口/窗口.md', '传统滑动窗口'),
+        ('传统算法/图搜索/搜索.md', '传统图搜索'),
+        ('滑动窗口/知识点窗口.md', '知识点滑动窗口'),
+    ):
+        fixture = root/'knowledge-base'/'手撕题'/relative
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text('# '+title+'\n\n分类回归测试正文。\n')
+    note_fixture = next((root/'knowledge-base/note').rglob('*.md'))
+    with note_fixture.open('a') as handle:
+        handle.write('\n' + '加载测试正文。' * 60 + '\n\n仅正文搜索标记XYZ。\n')
     run('python3','scripts/import_content.py')
     run('node','scripts/build.mjs')
     with (root/'server.log').open('w+') as log:
@@ -39,6 +54,8 @@ with tempfile.TemporaryDirectory(prefix='mykb-checks-') as temporary:
             else:raise RuntimeError('Test server did not start')
             run('python3','scripts/check_accounts.py')
             run('node','scripts/check_accounts_ui.cjs')
+            run('node','scripts/check_problem_categories.cjs')
+            run('node','scripts/check_loading_ui.cjs')
         finally:
             server.terminate()
             try:server.wait(timeout=10)

@@ -28,6 +28,72 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
   await expect(page.locator(".login-card")).toBeVisible();
   await expect(page.locator("#nav a")).toHaveCount(0);
   await login(page, "admin", password);
+  const editableIndex = await (
+    await adminContext.request.get(url + "/data/index.json")
+  ).json();
+  const editable = editableIndex.items.find(
+    (item) => item.section === "notes" && !item.isIndex,
+  );
+  await page.goto(url + "/notes?id=" + editable.id);
+  expect(
+    await page.evaluate(() =>
+      performance
+        .getEntriesByType("resource")
+        .some((entry) => entry.name.includes("editor-runtime-")),
+    ),
+  ).toBe(false);
+  const compressedIndex = await adminContext.request.get(
+    url + "/data/index.json",
+    { headers: { "Accept-Encoding": "gzip" } },
+  );
+  expect(compressedIndex.headers()["content-encoding"]).toBe("gzip");
+  const asset = await adminContext.request.get(url + "/assets/app.js", {
+    headers: { "Accept-Encoding": "gzip" },
+  });
+  expect(asset.headers()["content-encoding"]).toBe("gzip");
+  const cachedAsset = await adminContext.request.get(url + "/assets/app.js", {
+    headers: {
+      "Accept-Encoding": "gzip",
+      "If-None-Match": asset.headers().etag,
+    },
+  });
+  expect(cachedAsset.status()).toBe(304);
+  await page.locator("#edit-markdown").click();
+  const richText = page.locator(
+    '.toastui-editor-ww-container [contenteditable="true"]',
+  );
+  await expect(richText).toBeVisible();
+  await richText.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("编辑保存回归验证");
+  await page.route("**/api/articles/" + editable.id, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 500,
+      json: { message: "知识库磁盘只读" },
+    });
+  });
+  await page.locator("#save-markdown").click();
+  await expect(page.locator("#markdown-status")).toHaveText(
+    "保存失败：知识库磁盘只读",
+  );
+  await expect(page.locator("#toast")).toHaveText("保存失败：知识库磁盘只读");
+  await expect(richText).toContainText("编辑保存回归验证");
+  await expect(page.locator("#save-markdown")).toBeEnabled();
+  await page.unroute("**/api/articles/" + editable.id);
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/articles/" + editable.id) &&
+      response.request().method() === "POST",
+  );
+  await page.locator("#save-markdown").click();
+  expect((await saveResponse).status()).toBe(200);
+  await expect(page.locator("#article-body")).toContainText("编辑保存回归验证");
+  const source = await (
+    await adminContext.request.get(url + "/api/articles/" + editable.id)
+  ).json();
+  expect(source.body).toContain("编辑保存回归验证");
   await page.locator("#account-button").click();
   await page.locator("#manage-users").click();
   await expect(page.locator(".users-dialog")).toBeVisible();

@@ -1,0 +1,18 @@
+[Unit]
+Description=MyKB private GitHub sync and index cache updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace /opt/mykb with your installation directory.
+WorkingDirectory=/opt/mykb
+ExecStart=/usr/bin/python3 /opt/mykb/scripts/auto_sync.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

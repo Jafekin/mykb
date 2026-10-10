@@ -1,9 +1,11 @@
 """Build a portable, read-only snapshot; never modifies source knowledge bases."""
-import os, re, json, hashlib, shutil
+import os, re, json, hashlib, shutil, sys
 from pathlib import Path
 from datetime import datetime, timezone
 from judge_tests import JUDGEABLE
 from config import CONTENT_ROOT, NOTES_ROOT
+from markdown_title import article_title
+from content_cache import source_signature, cache_matches, build_lock, atomic_json
 
 PROJECT = Path(__file__).resolve().parents[1]
 SOURCE = CONTENT_ROOT
@@ -23,48 +25,66 @@ if not SOURCE.is_dir():
     raise SystemExit(f'Knowledge base not found: {SOURCE}')
 if not NOTE_SOURCE.is_dir(): raise SystemExit(f'Notes folder not found: {NOTE_SOURCE}')
 OUT.mkdir(parents=True, exist_ok=True)
-articles_dir = OUT / 'articles'
-if articles_dir.exists(): shutil.rmtree(articles_dir)
-articles_dir.mkdir(exist_ok=True)
-items, paths, hashes, aliases = [], {}, {}, 0
-for section, root, label, prefix in SECTIONS:
-    for file in sorted(root.rglob('*.md')):
-        relative = file.relative_to(root)
-        if file.name.startswith('._') or any(part.startswith('.') for part in relative.parts): continue
-        body = file.read_text(encoding='utf-8'); rel = f'{prefix}/{relative.as_posix()}'
-        identity = hashlib.sha256(body.encode()).hexdigest()
-        if identity in hashes:
-            paths[rel] = hashes[identity]; aliases += 1; continue
-        article_id = hashlib.sha256(rel.encode()).hexdigest()[:16]
-        hashes[identity] = article_id; paths[rel] = article_id
-        title_match = re.search(r'^#\s+(.+)', body, re.M)
-        frontmatter_title = re.search(r'^---\s*\n[\s\S]*?^title:\s*(.+?)\s*$[\s\S]*?^---', body, re.M)
-        title = title_match.group(1).strip() if title_match else frontmatter_title.group(1).strip() if frontmatter_title else file.stem
-        category = file.parent.name if file.parent != root else '综合'
-        def field(name):
-            match = re.search(r'\*\*' + name + r'\*\*[：:]\s*([^\n]+)', body)
-            return match.group(1).strip() if match else ''
-        is_index = file.stem in ['目录', 'README', '00-导航', '99-完整索引']
-        if is_index: title = category + ' · 目录'
-        summary = re.sub(r'[#*>\[\]$|]', '', re.sub(r'https?://\S+', '', body))
-        summary = ' '.join(summary.split())
-        slug = next((key for key in JUDGEABLE if file.name.startswith(key + '-')), '') if section == 'problems' else ''
-        item = dict(id=article_id, title=title, section=section, category=category, path=rel,
-                    difficulty=field('难度'), date=field('发布日期') or field('发布时间'),
-                    modifiedAt=datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat(),
-                    isIndex=is_index, judgeable=slug in JUDGEABLE,
-                    excerpt=summary[len(title):].strip()[:180], search=summary.lower())
-        items.append(item)
-        (OUT / 'articles' / f'{article_id}.json').write_text(json.dumps(dict(id=article_id, body=body), ensure_ascii=False))
-note_files = PROJECT / 'dist' / 'note-files'
-if note_files.exists(): shutil.rmtree(note_files)
-for file in NOTE_SOURCE.rglob('*'):
-    relative = file.relative_to(NOTE_SOURCE)
-    if not file.is_file() or file.suffix.lower() == '.md' or any(part.startswith('.') for part in relative.parts): continue
-    target = note_files / relative; target.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(file, target)
-manifest = dict(generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
-    items=items, paths=paths, aliases=aliases,
-    sections=[dict(id=section, name=label, count=sum(item['section'] == section and not item['isIndex'] for item in items))
-              for section, _, label, _ in SECTIONS])
-(OUT / 'index.json').write_text(json.dumps(manifest, ensure_ascii=False, separators=(',', ':')))
-print(json.dumps(dict(documents=len(items), duplicateFiles=aliases, sections=manifest['sections']), ensure_ascii=False, indent=2))
+with build_lock(OUT / '.build.lock'):
+    signature = source_signature(SECTIONS)
+    if '--force' not in sys.argv and cache_matches(OUT / 'index.json', signature) and (OUT / 'articles').is_dir():
+        print(json.dumps({'cached': True, 'message': 'Source unchanged; using cached index'}))
+        raise SystemExit(0)
+    articles_dir = OUT / 'articles'
+    articles_dir.mkdir(exist_ok=True)
+    items, paths, hashes, aliases = [], {}, {}, 0
+    for section, root, label, prefix in SECTIONS:
+        for file in sorted(root.rglob('*.md')):
+            relative = file.relative_to(root)
+            if file.name.startswith('._') or any(part.startswith('.') for part in relative.parts): continue
+            body = file.read_text(encoding='utf-8'); rel = f'{prefix}/{relative.as_posix()}'
+            identity = hashlib.sha256(body.encode()).hexdigest()
+            if identity in hashes:
+                paths[rel] = hashes[identity]; aliases += 1; continue
+            article_id = hashlib.sha256(rel.encode()).hexdigest()[:16]
+            hashes[identity] = article_id; paths[rel] = article_id
+            title = article_title(body, file.stem)
+            category = file.parent.name if file.parent != root else '综合'
+            def field(name):
+                match = re.search(r'\*\*' + name + r'\*\*[：:]\s*([^\n]+)', body)
+                return match.group(1).strip() if match else ''
+            is_index = file.stem in ['目录', 'README', '00-导航', '99-完整索引']
+            if is_index: title = category + ' · 目录'
+            summary = re.sub(r'[#*>\[\]$|]', '', re.sub(r'https?://\S+', '', body))
+            summary = ' '.join(summary.split())
+            slug = next((key for key in JUDGEABLE if file.name.startswith(key + '-')), '') if section == 'problems' else ''
+            item = dict(id=article_id, title=title, section=section, category=category, path=rel,
+                        difficulty=field('难度'), date=field('发布日期') or field('发布时间'),
+                        modifiedAt=datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat(),
+                        isIndex=is_index, judgeable=slug in JUDGEABLE,
+                        excerpt=summary[len(title):].strip()[:180], search=summary.lower())
+            items.append(item)
+            atomic_json(OUT / 'articles' / f'{article_id}.json', dict(id=article_id, body=body))
+    note_files = PROJECT / 'dist' / 'note-files'
+    valid_assets = set()
+    for file in NOTE_SOURCE.rglob('*'):
+        relative = file.relative_to(NOTE_SOURCE)
+        if not file.is_file() or file.suffix.lower() == '.md' or any(part.startswith('.') for part in relative.parts): continue
+        target = note_files / relative; valid_assets.add(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source_stat = file.stat()
+        if target.exists() and target.stat().st_size == source_stat.st_size and target.stat().st_mtime_ns == source_stat.st_mtime_ns:
+            continue
+        temporary = target.with_name('.' + target.name + '.cache-tmp')
+        try:
+            shutil.copy2(file, temporary)
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    if note_files.exists():
+        for asset in note_files.rglob('*'):
+            if asset.is_file() and asset not in valid_assets: asset.unlink()
+    manifest = dict(sourceSignature=signature, generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
+        items=items, paths=paths, aliases=aliases,
+        sections=[dict(id=section, name=label, count=sum(item['section'] == section and not item['isIndex'] for item in items))
+                  for section, _, label, _ in SECTIONS])
+    atomic_json(OUT / 'index.json', manifest)
+    valid_articles = {item['id'] + '.json' for item in items}
+    for cached_article in articles_dir.glob('*.json'):
+        if cached_article.name not in valid_articles: cached_article.unlink()
+    print(json.dumps(dict(documents=len(items), duplicateFiles=aliases, sections=manifest['sections']), ensure_ascii=False, indent=2))

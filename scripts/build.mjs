@@ -1,12 +1,22 @@
+import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
-import { cp, mkdir, readFile, writeFile, access } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  writeFile,
+  access,
+  readdir,
+} from "node:fs/promises";
 await mkdir("dist/assets", { recursive: true });
 await build({
   entryPoints: ["src/app.js"],
   bundle: true,
   minify: true,
   format: "esm",
-  outfile: "dist/assets/app.js",
+  outdir: "dist/assets",
+  splitting: true,
+  chunkNames: "[name]-[hash]",
 });
 for (const name of ["index.html", "style.css", "favicon.svg", "logo.svg"])
   await cp(`src/${name}`, `dist/${name}`);
@@ -26,4 +36,15 @@ await cp("node_modules/katex/dist/katex.min.css", "dist/assets/katex.min.css");
 await cp("node_modules/katex/dist/fonts", "dist/assets/fonts", {
   recursive: true,
 });
+async function compressText(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) await compressText(path);
+    else if (/\.(js|css|html)$/.test(entry.name))
+      await writeFile(path + ".gz", gzipSync(await readFile(path)));
+  }
+}
+await compressText("dist/assets");
+for (const path of ["dist/index.html", "dist/style.css"])
+  await writeFile(path + ".gz", gzipSync(await readFile(path)));
 console.log("Built portable site in dist/");
