@@ -1,5 +1,5 @@
 """Build a portable, read-only snapshot; never modifies source knowledge bases."""
-import os, re, json, hashlib, shutil, sys
+import os, re, json, hashlib, shutil, sys, subprocess
 from pathlib import Path
 from datetime import datetime, timezone
 from judge_tests import JUDGEABLE
@@ -26,8 +26,13 @@ if not SOURCE.is_dir():
 if not NOTE_SOURCE.is_dir(): raise SystemExit(f'Notes folder not found: {NOTE_SOURCE}')
 OUT.mkdir(parents=True, exist_ok=True)
 with build_lock(OUT / '.build.lock'):
+    try:
+        previous = json.loads((OUT / 'index.json').read_text())
+    except (OSError, ValueError):
+        previous = {}
+    previous_items = {item['path']: item for item in previous.get('items', [])}
     signature = source_signature(SECTIONS)
-    if '--force' not in sys.argv and cache_matches(OUT / 'index.json', signature) and (OUT / 'articles').is_dir():
+    if previous.get('creationTimeVersion') == 1 and '--force' not in sys.argv and cache_matches(OUT / 'index.json', signature) and (OUT / 'articles').is_dir():
         print(json.dumps({'cached': True, 'message': 'Source unchanged; using cached index'}))
         raise SystemExit(0)
     articles_dir = OUT / 'articles'
@@ -53,9 +58,24 @@ with build_lock(OUT / '.build.lock'):
             summary = re.sub(r'[#*>\[\]$|]', '', re.sub(r'https?://\S+', '', body))
             summary = ' '.join(summary.split())
             slug = next((key for key in JUDGEABLE if file.name.startswith(key + '-')), '') if section == 'problems' else ''
+            file_stat = file.stat()
+            old = previous_items.get(rel, {})
+            created_at = old.get('createdAt')
+            if not created_at:
+                birth = getattr(file_stat, 'st_birthtime', 0)
+                if not birth:
+                    try:
+                        birth = float(subprocess.check_output(
+                            ['stat', '-c', '%W', '--', str(file)], stderr=subprocess.DEVNULL))
+                    except (OSError, ValueError, subprocess.CalledProcessError):
+                        birth = 0
+                created_at = (datetime.fromtimestamp(birth, timezone.utc).isoformat()
+                              if birth > 0 else old.get('modifiedAt') or
+                              datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat())
             item = dict(id=article_id, title=title, section=section, category=category, path=rel,
                         difficulty=field('难度'), date=field('发布日期') or field('发布时间'),
-                        modifiedAt=datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat(),
+                        createdAt=created_at,
+                        modifiedAt=datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat(),
                         isIndex=is_index, judgeable=slug in JUDGEABLE,
                         excerpt=summary[len(title):].strip()[:180], search=summary.lower())
             items.append(item)
@@ -79,7 +99,7 @@ with build_lock(OUT / '.build.lock'):
     if note_files.exists():
         for asset in note_files.rglob('*'):
             if asset.is_file() and asset not in valid_assets: asset.unlink()
-    manifest = dict(sourceSignature=signature, generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
+    manifest = dict(creationTimeVersion=1, sourceSignature=signature, generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
         items=items, paths=paths, aliases=aliases,
         sections=[dict(id=section, name=label, count=sum(item['section'] == section and not item['isIndex'] for item in items))
                   for section, _, label, _ in SECTIONS])

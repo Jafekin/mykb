@@ -227,7 +227,7 @@ async function openUsers(actor) {
       )
         .map(
           ([section, label]) =>
-            `<details open><summary>${label}</summary>${data.categories
+            `<details open><summary><label class="account-check visibility-section"><input type="checkbox" data-visible-section="${section}" aria-label="${label}全部分类">${label}</label></summary>${data.categories
               .filter((category) => category.section === section)
               .map(
                 (category) =>
@@ -241,16 +241,50 @@ async function openUsers(actor) {
       const form = panel.querySelector("form"),
         admin = form.elements.namedItem("admin"),
         all = form.elements.namedItem("allVisible");
+      const groups = [...panel.querySelectorAll("[data-visible-section]")];
+      function syncGroups() {
+        for (const group of groups) {
+          const children = [
+            ...group.closest("details").querySelectorAll("[name=visible]"),
+          ];
+          const checked = children.filter((input) => input.checked).length;
+          group.checked = children.length > 0 && checked === children.length;
+          group.indeterminate = checked > 0 && checked < children.length;
+          group.disabled = admin.checked || !children.length;
+        }
+      }
       function disabled() {
         panel
           .querySelectorAll("fieldset input")
           .forEach((input) => (input.disabled = admin.checked));
-        panel
-          .querySelectorAll("[name=visible]")
-          .forEach((input) => (input.disabled = admin.checked || all.checked));
+        syncGroups();
       }
+      groups.forEach((group) => {
+        group.onclick = (event) => event.stopPropagation();
+        group.closest("label").onclick = (event) => event.stopPropagation();
+        group.onchange = () => {
+          group
+            .closest("details")
+            .querySelectorAll("[name=visible]")
+            .forEach((input) => (input.checked = group.checked));
+          all.checked = false;
+          syncGroups();
+        };
+      });
+      panel.querySelectorAll("[name=visible]").forEach((input) => {
+        input.onchange = () => {
+          all.checked = false;
+          syncGroups();
+        };
+      });
       admin.onchange = disabled;
-      all.onchange = disabled;
+      all.onchange = () => {
+        if (all.checked)
+          panel
+            .querySelectorAll("[name=visible]")
+            .forEach((input) => (input.checked = true));
+        disabled();
+      };
       disabled();
       async function save(payload) {
         const result = await api("/api/admin/users", payload);

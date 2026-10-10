@@ -30,8 +30,13 @@ try:
  assert call(guest,'/api/articles/'+allowed['id']+'/delete',{})[0]==403
  assert call(guest,'/api/articles',{'section':'notes','category':allowed['category'],'title':'must not create','body':'x'})[0]==403
  assert call(guest,'/api/state',{'key':'saved','value':{allowed['id']:True}})[0]==200
+ tags={'local:'+allowed['id']:['待读','技术']}
+ assert call(guest,'/api/state',{'key':'savedTags','value':tags})[0]==200
+ assert call(guest,'/api/state',{'key':'savedTags','value':{'local:x':['x'*31]}})[0]==400
  other=client();assert call(other,'/api/auth/login',{'username':username,'password':pw})[0]==200
  assert call(other,'/api/state')[1]['saved'][allowed['id']] is True
+ assert call(other,'/api/state')[1]['savedTags']==tags
+ assert not call(admin,'/api/state')[1].get('savedTags')
  assert call(admin,'/api/state')[1].get('saved',{}).get(allowed['id']) is not True
  assert call(guest,'/api/admin/users',{'action':'delete','id':1})[0]==403
  assert call(guest,'/api/state',{'key':'saved','value':{},'user_id':1})[0]==200

@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory(prefix='mykb-checks-') as temporary:
     env['SITE_URL']=f'http://127.0.0.1:{port}'
     def run(*args):subprocess.run(args,cwd=root,env=env,check=True)
     run('python3','scripts/check_markdown_title.py')
+    run('python3','scripts/check_link_metadata.py')
     run('python3','scripts/check_content_cache.py')
     run('python3','scripts/check_auto_sync.py')
     run('python3','scripts/setup.py')

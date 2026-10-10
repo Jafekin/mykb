@@ -208,3 +208,14 @@
 .rebuild-button[hidden] {
   display: none !important;
 }
+
+.visibility-categories summary .visibility-section {
+  display: inline-flex;
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.visibility-categories details > .account-check {
+  margin-left: 22px;
+}

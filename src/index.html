@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="MyKB：学习笔记、面试题、手撕题与论文" />
     <title>MyKB</title>
-    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/logo.svg" />
+    <link rel="icon" href="/logo.svg?v=hand-2" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/logo.svg?v=hand-2" />
     <link rel="stylesheet" href="/assets/katex.min.css" />
     <link rel="stylesheet" href="/style.css" />
   </head>
@@ -17,7 +17,7 @@
         <a class="brand" href="/interview"
           ><img
             class="logo"
-            src="/logo.svg"
+            src="/logo.svg?v=hand-2"
             alt="MyKB"
             width="40"
             height="40"
@@ -30,6 +30,33 @@
       </div>
     </header>
     <div id="app"><div class="loading">正在载入学习库…</div></div>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span>© 2026 Jafekin. All rights reserved.</span>
+        <span>Built for My Friends</span>
+      </div>
+    </footer>
+    <button
+      class="back-to-top"
+      id="back-to-top"
+      type="button"
+      aria-label="回到顶部"
+      title="回到顶部"
+    >
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 19V5m-7 7 7-7 7 7" />
+      </svg>
+    </button>
     <div id="toast" role="status"></div>
     <script type="module" src="/assets/app.js"></script>
   </body>

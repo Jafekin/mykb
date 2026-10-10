@@ -1,3 +1,4 @@
+import { articleAction } from "./article-action.js";
 import { loadEditor } from "./editor-loader.js";
 import "@toast-ui/editor/dist/toastui-editor.css";
 import "./rich-editor.css";
@@ -23,7 +24,7 @@ export function mountRichEditor(item, onSaved, onError) {
     dirty = false,
     saving = false,
     opening = false;
-  toggle.textContent = "✎ 编辑文章";
+  toggle.innerHTML = articleAction("edit", "编辑文章");
   const beforeUnload = (e) => {
     if (dirty) {
       e.preventDefault();
@@ -36,12 +37,12 @@ export function mountRichEditor(item, onSaved, onError) {
     if (!panel.hidden) {
       panel.hidden = true;
       document.querySelector("#article-body").hidden = false;
-      toggle.textContent = "✎ 编辑文章";
+      toggle.innerHTML = articleAction("edit", "编辑文章");
       return;
     }
     panel.hidden = false;
     document.querySelector("#article-body").hidden = true;
-    toggle.textContent = "← 返回阅读";
+    toggle.innerHTML = articleAction("back", "返回阅读");
     if (current) {
       current.focus();
       return;

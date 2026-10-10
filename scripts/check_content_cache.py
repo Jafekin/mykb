@@ -53,6 +53,18 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(self.build()['documents'], 1)
         self.assertEqual(len(list((self.root / 'dist/data/articles').glob('*.json'))), 1)
 
+    def test_creation_time_survives_edits_and_migration(self):
+        before = self.index()['items'][0]['createdAt']
+        self.article.write_text('# Changed creation fixture\n')
+        self.build()
+        self.assertEqual(self.index()['items'][0]['createdAt'], before)
+        old = self.index()
+        old.pop('creationTimeVersion')
+        old['items'][0].pop('createdAt')
+        (self.root / 'dist/data/index.json').write_text(json.dumps(old))
+        self.assertNotIn('cached', self.build())
+        self.assertTrue(self.index()['items'][0]['createdAt'])
+
     def test_assets_and_hidden_cache(self):
         output = self.root / 'dist/note-files/assets/picture.txt'
         before = output.stat().st_mtime_ns

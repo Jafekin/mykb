@@ -1,3 +1,7 @@
+import { articleAction } from "./article-action.js";
+import { paperHeader } from "./paper-header.js";
+import { sortBookmarks } from "./bookmark-order.js";
+import { sortEntries, sortOptions } from "./list-order.js";
 import {
   problemCollections,
   problemGroup,
@@ -15,13 +19,34 @@ import {
   hasUnsavedRichChanges,
 } from "./rich-editor.js";
 import { openNewDocument } from "./new-document.js";
-import { openExternalBookmarkForm, safeLink } from "./external-bookmarks.js";
+import {
+  openExternalBookmarkForm,
+  safeLink,
+  safeImage,
+} from "./external-bookmarks.js";
 import "./saved-links.css";
 import { requireSession, mountAccountMenu, api } from "./account-ui.js";
+import { mountPageScroll } from "./page-scroll.js";
+mountPageScroll();
+document.querySelector("#back-to-top").addEventListener("click", () => {
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "instant"
+    : "smooth";
+  window.scrollTo({ top: 0, behavior });
+  for (const pane of document.querySelectorAll(
+    ".layout > main, .layout > .sidebar",
+  ))
+    pane.scrollTo({ top: 0, behavior });
+});
 const { siteName, siteLogo } = await api("/api/config");
 const brand = document.querySelector(".brand");
 brand.lastChild.textContent = siteName;
-brand.querySelector("img").src = siteLogo;
+brand.querySelector("img").alt = siteName;
+// Migrate the previous local logo while a running server still has old config.
+brand.querySelector("img").src =
+  siteLogo === "/jkb-logo-v2.png" || siteLogo.startsWith("/logo.svg")
+    ? "/logo.svg?v=hand-2"
+    : siteLogo;
 document.title = siteName;
 const { user: currentUser, state: accountState } = await requireSession();
 const can = (action) =>
@@ -60,14 +85,6 @@ const labels = {
   learning: "学习路径",
   papers: "最新论文",
   saved: "我的收藏",
-};
-const subtitles = {
-  interview: "从原理到实践，系统准备大模型技术面试。",
-  problems: "理解每一行代码，从基础算子到完整模型。",
-  learning: "沿着清晰的路线，把知识变成自己的能力。",
-  papers: "阅读归档论文，跟进研究思路与方法。",
-  notes: "整理个人技术笔记、论文阅读与系统实践。",
-  saved: "把值得回看的内容，留在自己的学习清单里。",
 };
 const english = {
   interview: "INTERVIEW COLLECTION",
@@ -155,6 +172,7 @@ window.addEventListener("beforeunload", () => {
 let progress = getStore("progress", {}),
   saved = getStore("saved", {}),
   externalBookmarks = getStore("externalBookmarks", []),
+  savedTags = getStore("savedTags", {}),
   index,
   byId;
 let searchText, searchVersion, searchLoading;
@@ -237,7 +255,10 @@ function route() {
     id: p.searchParams.get("id"),
     q: p.searchParams.get("q") || "",
     category: p.searchParams.get("category") || "",
+    tag: p.searchParams.get("tag") || "",
+    untagged: p.searchParams.get("untagged") === "1",
     scope: p.searchParams.get("scope") || "current",
+    sort: p.searchParams.get("sort") || "",
     difficulty: p.searchParams.get("difficulty") || "",
     done: p.searchParams.get("done") === "1",
     page: Math.max(1, Number(p.searchParams.get("page")) || 1),
@@ -253,10 +274,11 @@ function go(url, replace = false) {
 }
 function listingUrl(s) {
   const p = new URLSearchParams();
-  for (const k of ["q", "category", "difficulty", "group"])
+  for (const k of ["q", "category", "difficulty", "group", "tag", "sort"])
     if (s[k]) p.set(k, s[k]);
   if (s.scope === "all") p.set("scope", "all");
   if (s.done) p.set("done", "1");
+  if (s.untagged) p.set("untagged", "1");
   if (s.page > 1) p.set("page", s.page);
   return "/" + s.section + (p.size ? "?" + p : "");
 }
@@ -280,7 +302,7 @@ function download(name, body, type = "text/plain") {
 }
 async function toggleSaved(id) {
   const next = { ...saved };
-  next[id] ? delete next[id] : (next[id] = true);
+  next[id] ? delete next[id] : (next[id] = new Date().toISOString());
   try {
     await queueWrite("saved", next);
     saved = next;
@@ -292,9 +314,7 @@ async function toggleSaved(id) {
         ? saved[id]
           ? "★"
           : "☆"
-        : saved[id]
-          ? "★ 已收藏"
-          : "☆ 收藏";
+        : articleAction("save", saved[id] ? "已收藏" : "收藏");
     });
     toast(saved[id] ? "已加入收藏" : "已取消收藏");
     if (route().section === "saved" && !route().id) render();
@@ -395,12 +415,77 @@ function nav(section) {
     .join("");
 }
 function card(item) {
-  return `<article class="card"><button class="card-save ${saved[item.id] ? "saved" : ""}" data-save="${item.id}" aria-label="收藏 ${esc(item.title)}" aria-pressed="${!!saved[item.id]}">${saved[item.id] ? "★" : "☆"}</button><a href="${href(item)}"><div class="card-meta"><span class="tag">${esc(item.category)}</span>${item.difficulty ? `<span class="tag ${esc(item.difficulty.toLowerCase())}">${esc(item.difficulty)}</span>` : ""}${item.judgeable ? '<span class="tag accent">可评测</span>' : ""}${progress[item.id] ? '<span class="tag accent">✓ 已学完</span>' : ""}${item.date ? `<span>${esc(item.date.slice(0, 10))}</span>` : ""}${modifiedTime(item)}</div><h2>${esc(item.title)}</h2><p>${esc(item.excerpt)}</p><div class="card-footer"><span>${labels[item.section]}</span><span class="read">${item.section === "problems" ? "开始练习" : "开始阅读"} ↗</span></div></a></article>`;
+  return `<article class="card"><button class="card-save ${saved[item.id] ? "saved" : ""}" data-save="${item.id}" aria-label="收藏 ${esc(item.title)}" aria-pressed="${!!saved[item.id]}">${saved[item.id] ? "★" : "☆"}</button><a href="${href(item)}"><div class="card-meta"><span class="tag">${esc(item.category)}</span>${item.difficulty ? `<span class="tag ${esc(item.difficulty.toLowerCase())}">${esc(item.difficulty)}</span>` : ""}${item.judgeable ? '<span class="tag accent">可评测</span>' : ""}${progress[item.id] ? '<span class="tag accent">✓ 已学完</span>' : ""}${item.date ? `<span>${esc(item.date.slice(0, 10))}</span>` : ""}${modifiedTime(item)}</div><h2>${esc(item.title)}</h2><p>${esc(item.excerpt)}</p><div class="card-footer"><span>${labels[item.section]}</span><span class="read">${item.section === "problems" ? "开始练习" : "开始阅读"}<svg class="read-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M7 7h10v10"/></svg></span></div></a></article>`;
+}
+function bookmarkTags(key) {
+  return (
+    savedTags[key] ??
+    (key.startsWith("external:")
+      ? externalBookmarks.find((item) => "external:" + item.id === key)?.tags
+      : []) ??
+    []
+  );
+}
+function matchesTags(key, s) {
+  const tags = bookmarkTags(key);
+  return (!s.tag || tags.includes(s.tag)) && (!s.untagged || !tags.length);
+}
+function tagControls(key) {
+  return `<div class="bookmark-tags">${bookmarkTags(key)
+    .map(
+      (tag) =>
+        `<button class="tag" data-saved-tag="${esc(tag)}">${esc(tag)}</button>`,
+    )
+    .join(
+      "",
+    )}<button class="bookmark-tag-edit" data-edit-tags="${esc(key)}">编辑标签</button></div>`;
+}
+function editBookmarkTags(key) {
+  const dialog = document.createElement("dialog");
+  dialog.className = "external-bookmark-dialog";
+  dialog.innerHTML = `<form><div class="external-bookmark-heading"><h2>编辑收藏标签</h2><button type="button" class="outline-button">取消</button></div><label>标签<input name="tags" maxlength="650" placeholder="例如：大模型、待读、工程实践" value="${esc(bookmarkTags(key).join("、"))}"></label><p>用逗号、顿号或换行分隔，最多 20 个标签，每个不超过 30 字。清空即可移除标签。</p><p role="alert"></p><div class="external-bookmark-footer"><button class="primary-button" type="submit">保存标签</button></div></form>`;
+  document.body.append(dialog);
+  dialog.querySelector('[type="button"]').onclick = () => dialog.close();
+  dialog.addEventListener("close", () => dialog.remove(), { once: true });
+  dialog.querySelector("form").onsubmit = async (event) => {
+    event.preventDefault();
+    const tags = [
+      ...new Set(
+        dialog
+          .querySelector("input")
+          .value.split(/[,，、\n]+/)
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ];
+    const error = dialog.querySelector('[role="alert"]');
+    if (tags.length > 20 || tags.some((tag) => tag.length > 30)) {
+      error.textContent = "最多 20 个标签，每个不超过 30 字。";
+      return;
+    }
+    const next = { ...savedTags };
+    next[key] = tags;
+    const button = dialog.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      await queueWrite("savedTags", next);
+      savedTags = next;
+      dialog.close();
+      toast("标签已保存");
+      render();
+    } catch (err) {
+      error.textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+  dialog.showModal();
+  dialog.querySelector("input").focus();
 }
 function externalCard(item) {
   const url = safeLink(item.url),
-    image = safeLink(item.image),
-    favicon = safeLink(item.favicon);
+    image = safeImage(item.image),
+    favicon = safeImage(item.favicon);
   let host;
   try {
     host = new URL(url).hostname.replace(/^www\./, "");
@@ -440,12 +525,6 @@ function renderList(s) {
         ? saved[x.id]
         : s.scope === "all" || x.section === s.section),
   );
-  if (s.section === "notes")
-    base.sort(
-      (a, b) =>
-        (Date.parse(b.modifiedAt) || 0) - (Date.parse(a.modifiedAt) || 0) ||
-        a.path.localeCompare(b.path, "zh-CN"),
-    );
   const cats = [
     ...new Set([
       ...base.map((x) => x.category),
@@ -456,12 +535,24 @@ function renderList(s) {
   ].sort((a, b) => a.localeCompare(b, "zh-CN"));
   const finished = base.filter((x) => progress[x.id]).length;
   $("#app").innerHTML =
-    `<div class="layout"><aside class="sidebar"><p class="side-label">${s.section === "papers" ? "研究领域" : "内容分类"}</p><div class="side-links"><button data-category="" class="${!s.category ? "active" : ""}">全部内容 <span class="count">${base.length + (s.section === "saved" ? externalBookmarks.length : 0)}</span></button>${cats.map((c) => `<button data-category="${esc(c)}" class="${c === s.category ? "active" : ""}">${esc(c)}<span class="count">${c === "网络文章" ? externalBookmarks.length : base.filter((x) => x.category === c).length}</span></button>`).join("")}</div><div class="study-box"><strong>一点一滴，持续进步</strong><div class="progress-track"><span style="width:${base.length ? (finished / base.length) * 100 : 0}%"></span></div><p>已完成 ${finished} / ${base.length} 篇</p><p>收藏与学习进度保存在你的账号中。</p><button class="outline-button" id="export" style="margin-top:14px">导出学习记录</button></div></aside><main id="main"><div class="page-title"><div><p class="eyebrow">${english[s.section]}</p><h1>${labels[s.section]}</h1><p>${subtitles[s.section]}</p></div>${["interview", "problems"].includes(s.section) ? '<button class="outline-button" id="random">随机一题 ↗</button>' : ""}</div><form class="toolbar" id="search-form"><div class="search-wrap"><span>⌕</span><input id="search" type="search" placeholder="搜索标题、知识点或正文…" aria-label="搜索内容" value="${esc(s.q)}"></div><select id="scope" aria-label="搜索范围"><option value="current">当前栏目</option><option value="all" ${s.scope === "all" ? "selected" : ""}>全部栏目</option></select><select id="difficulty" aria-label="难度"><option value="">全部难度</option>${["EASY", "MEDIUM", "HARD"].map((x) => `<option ${s.difficulty === x ? "selected" : ""}>${x}</option>`).join("")}</select></form><div class="results-head"><span id="result-count"></span><label><input type="checkbox" id="done" ${s.done ? "checked" : ""}> 只看未完成</label></div><div id="results"></div><div id="pagination" class="pagination"></div></main></div>`;
+    `<div class="layout"><aside class="sidebar"><p class="side-label">${s.section === "papers" ? "研究领域" : "内容分类"}</p><div class="side-links"><button data-category="" class="${!s.category ? "active" : ""}">全部内容 <span class="count">${base.length + (s.section === "saved" ? externalBookmarks.length : 0)}</span></button>${cats.map((c) => `<button data-category="${esc(c)}" class="${c === s.category ? "active" : ""}">${esc(c)}<span class="count">${c === "网络文章" ? externalBookmarks.length : base.filter((x) => x.category === c).length}</span></button>`).join("")}</div><div class="study-box"><strong>一点一滴，持续进步</strong><div class="progress-track"><span style="width:${base.length ? (finished / base.length) * 100 : 0}%"></span></div><p>已完成 ${finished} / ${base.length} 篇</p><p>收藏与学习进度保存在你的账号中。</p><button class="outline-button" id="export" style="margin-top:14px">导出学习记录</button></div></aside><main id="main"><div class="page-title"><div><h1>${labels[s.section]}</h1><p class="eyebrow">${english[s.section]}</p></div>${["interview", "problems"].includes(s.section) ? `<button class="outline-button" id="random">${articleAction("random", "随机一题")}</button>` : ""}</div><form class="toolbar" id="search-form"><div class="search-wrap">${articleAction("search", "")}<input id="search" type="search" placeholder="搜索标题、知识点或正文…" aria-label="搜索内容" value="${esc(s.q)}"></div><select id="sort" aria-label="排列顺序"><option value="">排列顺序</option>${sortOptions(
+      s.section,
+    )
+      .map(
+        ([value, label]) =>
+          `<option value="${value}" ${s.sort === value ? "selected" : ""}>${label}</option>`,
+      )
+      .join(
+        "",
+      )}</select><select id="difficulty" aria-label="难度"><option value="">全部难度</option>${["EASY", "MEDIUM", "HARD"].map((x) => `<option ${s.difficulty === x ? "selected" : ""}>${x}</option>`).join("")}</select></form><div class="results-head"><span id="result-count"></span><label><input type="checkbox" id="done" ${s.done ? "checked" : ""}> 只看未完成</label></div><div id="results"></div><div id="pagination" class="pagination"></div></main></div>`;
   const newButton = document.createElement("button");
   newButton.className = "primary-button";
   newButton.id =
     s.section === "saved" ? "add-external-bookmark" : "new-document";
-  newButton.textContent = s.section === "saved" ? "+ 添加外链" : "+ 新建文档";
+  newButton.innerHTML = articleAction(
+    "plus",
+    s.section === "saved" ? "添加外链" : "新建文档",
+  );
   const actions = document.createElement("div");
   actions.className = "page-title-actions";
   if ($("#random")) actions.append($("#random"));
@@ -529,9 +620,40 @@ function renderList(s) {
     $(".side-links").innerHTML =
       `<button data-category="" class="${!s.category && !s.group ? "active" : ""}">全部内容<span class="count">${base.length}</span></button>${collections.map((category) => `<button data-category="${category}" class="${s.category === category ? "active" : ""}">${category}<span class="count">${base.filter((item) => item.category === category).length}</span></button>`).join("")}${groupMenus}`;
   }
+  if (s.section === "saved") {
+    const keys = [
+      ...base.map((item) => "local:" + item.id),
+      ...externalBookmarks.map((item) => "external:" + item.id),
+    ];
+    const tags = [...new Set(keys.flatMap(bookmarkTags))].sort((a, b) =>
+      a.localeCompare(b, "zh-CN"),
+    );
+    $(".sidebar > .side-label").textContent = "收藏分类";
+    $(".side-links").classList.add("saved-sidebar-links");
+    $(".side-links").innerHTML =
+      `<button id="all-bookmarks" class="${!s.category && !s.tag && !s.untagged ? "active" : ""}">全部收藏<span class="count">${keys.length}</span></button><div class="saved-filter-group" ${s.category ? "data-open" : ""}><button class="saved-filter-toggle" aria-expanded="${!!s.category}">内容分类<span class="count">${keys.length}</span></button><div class="problem-subcategories" role="group" aria-label="内容分类">${cats.map((category) => `<button data-category="${esc(category)}" class="${s.category === category ? "active" : ""}">${esc(category)}<span class="count">${category === "网络文章" ? externalBookmarks.length : base.filter((item) => item.category === category).length}</span></button>`).join("")}</div></div><div class="saved-filter-group" ${s.tag || s.untagged ? "data-open" : ""}><button class="saved-filter-toggle" aria-expanded="${!!(s.tag || s.untagged)}">标签分类<span class="count">${tags.length}</span></button><div class="problem-subcategories" role="group" aria-label="标签分类"><button id="untagged-bookmarks" class="${s.untagged ? "active" : ""}">未打标签<span class="count">${keys.filter((key) => !bookmarkTags(key).length).length}</span></button>${tags.map((tag) => `<button data-saved-tag="${esc(tag)}" class="${s.tag === tag ? "active" : ""}">${esc(tag)}<span class="count">${keys.filter((key) => bookmarkTags(key).includes(tag)).length}</span></button>`).join("")}</div></div>`;
+    document.querySelectorAll(".saved-filter-toggle").forEach((button) => {
+      button.onclick = () => {
+        const group = button.parentElement;
+        const expand = !group.hasAttribute("data-open");
+        document.querySelectorAll(".saved-filter-group").forEach((other) => {
+          const open = other === group && expand;
+          other.toggleAttribute("data-open", open);
+          other
+            .querySelector(".saved-filter-toggle")
+            .setAttribute("aria-expanded", String(open));
+        });
+      };
+    });
+    $("#all-bookmarks").onclick = () =>
+      update({ category: "", tag: "", untagged: false });
+    $("#untagged-bookmarks").onclick = () =>
+      update({ category: "", tag: "", untagged: true });
+  }
   const filter = () =>
     base.filter(
       (x) =>
+        (s.section !== "saved" || matchesTags("local:" + x.id, s)) &&
         (!s.group || problemGroup(x) === s.group) &&
         (!s.category ||
           (s.group ? problemSubcategory(x) : x.category) === s.category) &&
@@ -551,42 +673,48 @@ function renderList(s) {
     );
   const filterExternal = () =>
     s.section === "saved" && (!s.category || s.category === "网络文章")
-      ? externalBookmarks.filter((item) =>
-          s.q
-            .toLowerCase()
-            .trim()
-            .split(/\s+/)
-            .every((word) =>
-              `${item.title} ${item.description} ${item.url}`
-                .toLowerCase()
-                .includes(word),
-            ),
+      ? externalBookmarks.filter(
+          (item) =>
+            matchesTags("external:" + item.id, s) &&
+            s.q
+              .toLowerCase()
+              .trim()
+              .split(/\s+/)
+              .every((word) =>
+                `${item.title} ${item.description} ${item.url}`
+                  .toLowerCase()
+                  .includes(word),
+              ),
         )
       : [];
   let filtered = filter(),
     filteredExternal = filterExternal();
   const draw = () => {
-    const visible =
+    const entries =
       s.section === "saved"
-        ? [
-            ...filtered.map((item) => ({ type: "local", item })),
-            ...filteredExternal.map((item) => ({ type: "external", item })),
-          ]
+        ? sortBookmarks(filtered, filteredExternal, saved)
         : filtered.map((item) => ({ type: "local", item }));
+    const visible = sortEntries(
+      entries,
+      s.sort || (s.section === "saved" ? "" : "modified-desc"),
+      saved,
+    );
     const pages = Math.max(1, Math.ceil(visible.length / 18));
     s.page = Math.min(s.page, pages);
     $("#result-count").textContent =
-      `${s.q ? "搜索结果 · " : ""}${visible.length.toLocaleString()} 篇内容${s.category ? " / " + s.category : ""}`;
+      `${s.q ? "搜索结果 · " : ""}${visible.length.toLocaleString()} 篇内容${s.category ? " / " + s.category : ""}${s.tag ? " / 标签：" + s.tag : s.untagged ? " / 未打标签" : ""}`;
     $("#results").innerHTML = visible.length
       ? `<div class="cards ${["learning", "papers"].includes(s.section) ? "grid-cards" : ""} ${s.section === "saved" ? "saved-cards" : ""}">${visible
           .slice((s.page - 1) * 18, s.page * 18)
           .map((entry) =>
             entry.type === "external"
-              ? externalCard(entry.item)
-              : card(entry.item),
+              ? `<div class="saved-entry">${externalCard(entry.item)}${tagControls("external:" + entry.item.id)}</div>`
+              : s.section === "saved"
+                ? `<div class="saved-entry">${card(entry.item)}${tagControls("local:" + entry.item.id)}</div>`
+                : card(entry.item),
           )
           .join("")}</div>`
-      : `<div class="empty"><h2>${s.section === "saved" && !s.q ? "还没有收藏" : "没有匹配的内容"}</h2><p>${s.section === "saved" && !s.q ? "点击题目旁的 ☆ 收藏站内内容，或添加网络文章外链。" : "试试其他关键词，或清除分类和难度筛选。"}</p><button class="outline-button" id="clear">${s.section === "saved" ? "浏览面试题" : "清除筛选"}</button></div>`;
+      : `<div class="empty"><h2>${s.section === "saved" && !s.q && !s.tag && !s.untagged && !s.category && !s.difficulty && !s.done ? "还没有收藏" : "没有匹配的内容"}</h2><p>${s.section === "saved" && !s.q && !s.tag && !s.untagged && !s.category && !s.difficulty && !s.done ? "点击题目旁的 ☆ 收藏站内内容，或添加网络文章外链。" : "试试其他关键词，或清除筛选。"}</p><button class="outline-button" id="clear">${s.section === "saved" && !base.length && !externalBookmarks.length ? "浏览面试题" : "清除筛选"}</button></div>`;
     $("#results")
       .querySelectorAll(".external-bookmark-main img")
       .forEach((img) => {
@@ -606,7 +734,12 @@ function renderList(s) {
       $("#next").onclick = () => update({ ...s, page: s.page + 1 });
     if ($("#clear"))
       $("#clear").onclick = () =>
-        go("/" + (s.section === "saved" ? "interview" : s.section));
+        go(
+          "/" +
+            (s.section === "saved" && !base.length && !externalBookmarks.length
+              ? "interview"
+              : s.section),
+        );
   };
   draw();
   document.querySelectorAll("[data-category]").forEach(
@@ -614,16 +747,19 @@ function renderList(s) {
       (b.onclick = () =>
         update({
           category: b.dataset.category,
+          ...(s.section === "saved" ? { tag: "", untagged: false } : {}),
           group: b.dataset.categoryGroup || "",
         })),
   );
-  document
-    .querySelectorAll("[data-problem-group]")
-    .forEach(
-      (b) =>
-        (b.onclick = () =>
-          update({ group: b.dataset.problemGroup, category: "" })),
-    );
+  document.querySelectorAll("[data-problem-group]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        update({
+          group:
+            s.group === b.dataset.problemGroup ? "" : b.dataset.problemGroup,
+          category: "",
+        })),
+  );
   $("#search-form").onsubmit = (e) => {
     e.preventDefault();
   };
@@ -648,13 +784,8 @@ function renderList(s) {
       draw();
     }, 140);
   };
-  $("#scope").onchange = (e) =>
-    update({
-      scope: e.target.value,
-      category: "",
-      group: "",
-      q: $("#search").value,
-    });
+  $("#sort").onchange = (e) =>
+    update({ sort: e.target.value, q: $("#search").value });
   $("#difficulty").onchange = (e) =>
     update({ difficulty: e.target.value, q: $("#search").value });
   $("#done").onchange = (e) =>
@@ -678,6 +809,7 @@ function renderList(s) {
           exportedAt: new Date().toISOString(),
           saved,
           externalBookmarks,
+          savedTags,
           progress,
           drafts,
         },
@@ -697,7 +829,12 @@ async function renderArticle(item, sequence) {
   const data = await response.json();
   if (sequence !== renderSequence) return;
   setStore("last", item.id);
-  const body = data.body.replace(/^# .*(?:\r?\n|$)/, "");
+  const sourceBody = data.body.replace(/^# .*(?:\r?\n|$)/, "");
+  const paper =
+    item.section === "papers" && !item.isIndex
+      ? paperHeader(item, sourceBody)
+      : null;
+  const body = paper ? paper.body : sourceBody;
   const answerAt =
     item.section === "interview" ? body.indexOf("## 参考答案") : -1;
   const rendered =
@@ -706,7 +843,17 @@ async function renderArticle(item, sequence) {
         `<details class="answer"><summary>查看参考答案</summary>${markdown(body.slice(answerAt))}</details>`
       : markdown(body);
   $("#app").innerHTML =
-    `<div class="detail-layout"><main id="main"><div class="breadcrumb"><a href="/${item.section}">${labels[item.section]}</a><span> / </span><a href="/${item.section}?category=${encodeURIComponent(item.category)}">${esc(item.category)}</a><span> / 阅读</span></div><article class="article-card"><span class="tag accent">${labels[item.section]}</span>${item.difficulty ? ` <span class="tag">${esc(item.difficulty)}</span>` : ""}<h1 class="article-title">${esc(item.title)}</h1><div class="article-actions"><button class="outline-button ${saved[item.id] ? "selected" : ""}" data-save="${item.id}" aria-pressed="${!!saved[item.id]}">${saved[item.id] ? "★ 已收藏" : "☆ 收藏"}</button><button class="outline-button ${progress[item.id] ? "selected" : ""}" id="complete">${progress[item.id] ? "✓ 已学完" : "○ 标记学完"}</button><button class="outline-button" id="download">↓ 下载 Markdown</button><button class="outline-button" id="copy-link">复制链接</button><button class="outline-button" id="edit-markdown">✎ 编辑 Markdown</button></div><div class="prose" id="article-body">${rendered}</div><section class="markdown-editor" id="markdown-editor" hidden><div class="markdown-editor-head"><div><h2>编辑 Markdown</h2><p>保存后将直接更新知识库中的原始文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="markdown-preview">预览</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><textarea id="markdown-source" spellcheck="false" aria-label="Markdown 内容"></textarea><div class="prose markdown-preview" id="markdown-preview-body" hidden></div><p class="markdown-status" id="markdown-status">尚未保存</p></section>${item.section === "problems" && !item.isIndex && !["专题合集", "公司合集"].includes(item.category) ? `<section class="editor"><h2>我的练习草稿</h2><textarea id="draft" spellcheck="false" aria-label="练习代码草稿"></textarea><div class="editor-toolbar">${item.judgeable ? '<button class="primary-button" id="judge-code">▶ 提交评测</button>' : '<button class="outline-button" disabled>暂未配置自动评测</button>'}<button class="outline-button" id="download-code">下载代码</button><button class="outline-button" id="reset-code">恢复起步代码</button></div><div id="judge-result" class="judge-result" hidden></div></section>` : ""}</article></main><aside class="toc"><div class="section-rule"></div><h3>本页目录</h3><div id="toc-links"></div><hr><a href="/${item.section}">← 返回${labels[item.section]}</a></aside></div>`;
+    `<div class="detail-layout"><main id="main"><div class="breadcrumb"><a href="/${item.section}">${labels[item.section]}</a><span> / </span><a href="/${item.section}?category=${encodeURIComponent(item.category)}">${esc(item.category)}</a><span> / 阅读</span></div><article class="article-card">${paper ? paper.html : `<span class="tag accent">${labels[item.section]}</span>${item.difficulty ? ` <span class="tag">${esc(item.difficulty)}</span>` : ""}<h1 class="article-title">${esc(item.title)}</h1>`}<div class="article-actions"><button class="outline-button ${saved[item.id] ? "selected" : ""}" data-save="${item.id}" aria-pressed="${!!saved[item.id]}">${articleAction("save", saved[item.id] ? "已收藏" : "收藏")}</button><button class="outline-button ${progress[item.id] ? "selected" : ""}" id="complete" aria-pressed="${!!progress[item.id]}">${articleAction("complete", progress[item.id] ? "已学完" : "标记学完")}</button><button class="outline-button" id="download">${articleAction("download", "下载 Markdown")}</button><button class="outline-button" id="copy-link"><svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>复制链接</button><button class="outline-button" id="edit-markdown">${articleAction("edit", "编辑文章")}</button></div><div class="prose" id="article-body">${rendered}</div><section class="markdown-editor" id="markdown-editor" hidden><div class="markdown-editor-head"><div><h2>编辑 Markdown</h2><p>保存后将直接更新知识库中的原始文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="markdown-preview">预览</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><textarea id="markdown-source" spellcheck="false" aria-label="Markdown 内容"></textarea><div class="prose markdown-preview" id="markdown-preview-body" hidden></div><p class="markdown-status" id="markdown-status">尚未保存</p></section>${item.section === "problems" && !item.isIndex && !["专题合集", "公司合集"].includes(item.category) ? `<section class="editor"><h2>我的练习草稿</h2><textarea id="draft" spellcheck="false" aria-label="练习代码草稿"></textarea><div class="editor-toolbar">${item.judgeable ? '<button class="primary-button" id="judge-code">▶ 提交评测</button>' : '<button class="outline-button" disabled>暂未配置自动评测</button>'}<button class="outline-button" id="download-code">下载代码</button><button class="outline-button" id="reset-code">恢复起步代码</button></div><div id="judge-result" class="judge-result" hidden></div></section>` : ""}</article></main><aside class="toc"><div class="section-rule"></div><h3>本页目录</h3><div id="toc-links"></div><hr><a href="/${item.section}">← 返回${labels[item.section]}</a></aside></div>`;
+  const paperCopy = $(".paper-copy-id");
+  if (paperCopy)
+    paperCopy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(paperCopy.dataset.arxiv);
+        toast("arXiv 编号已复制");
+      } catch {
+        toast("复制失败，请手动复制 arXiv 编号");
+      }
+    };
   const practice = $(".editor");
   if (practice) {
     const rail = document.createElement("aside");
@@ -721,7 +868,8 @@ async function renderArticle(item, sequence) {
     const metadata = document.createElement("div");
     metadata.className = "article-modified";
     metadata.innerHTML = modifiedTime(item);
-    $(".article-title").after(metadata);
+    if (paper) $(".paper-heading").append(metadata);
+    else $(".article-title").after(metadata);
   }
   article.querySelectorAll("h1,h2,h3").forEach((h, i) => {
     h.id = "heading-" + i;
@@ -820,7 +968,11 @@ async function renderArticle(item, sequence) {
       ? delete progress[item.id]
       : (progress[item.id] = new Date().toISOString());
     setStore("progress", progress);
-    $("#complete").textContent = progress[item.id] ? "✓ 已学完" : "○ 标记学完";
+    $("#complete").innerHTML = articleAction(
+      "complete",
+      progress[item.id] ? "已学完" : "标记学完",
+    );
+    $("#complete").setAttribute("aria-pressed", !!progress[item.id]);
     $("#complete").classList.toggle("selected", !!progress[item.id]);
     toast(progress[item.id] ? "已记录学习进度" : "已取消完成标记");
   };
@@ -850,7 +1002,8 @@ async function renderArticle(item, sequence) {
   const deleteButton = document.createElement("button");
   deleteButton.id = "delete-document";
   deleteButton.className = "outline-button danger-button";
-  deleteButton.textContent = "删除文档";
+  deleteButton.innerHTML =
+    '<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7"/></svg>删除文档';
   if (can("delete")) $(".article-actions").append(deleteButton);
   deleteButton.onclick = async () => {
     deleteButton.disabled = true;
@@ -1008,6 +1161,16 @@ async function render() {
   }
 }
 document.addEventListener("click", async (e) => {
+  const tag = e.target.closest("[data-saved-tag]");
+  if (tag) {
+    update({ category: "", tag: tag.dataset.savedTag, untagged: false });
+    return;
+  }
+  const editTags = e.target.closest("[data-edit-tags]");
+  if (editTags) {
+    editBookmarkTags(editTags.dataset.editTags);
+    return;
+  }
   const external = e.target.closest("[data-remove-external]");
   if (external) {
     const next = externalBookmarks.filter(

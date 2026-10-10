@@ -12,14 +12,22 @@ export function safeLink(value) {
     return "";
   }
 }
+export function safeImage(value) {
+  const link = safeLink(value);
+  if (!link) return "";
+  const url = new URL(link);
+  if (url.hostname === "hdslb.com" || url.hostname.endsWith(".hdslb.com"))
+    url.protocol = "https:";
+  return url.href;
+}
 export function openExternalBookmarkForm(onAdd) {
   const dialog = document.createElement("dialog");
   dialog.className = "external-bookmark-dialog";
-  dialog.innerHTML = `<form id="external-bookmark-form"><div class="external-bookmark-heading"><div><p class="eyebrow">WEB BOOKMARK</p><h2>添加网络文章</h2></div><button type="button" class="outline-button" id="cancel-bookmark">取消</button></div><label>文章网址<input name="url" type="url" inputmode="url" placeholder="粘贴文章链接，自动读取预览" required maxlength="2048" autocomplete="url"></label><p class="external-bookmark-status" role="status">只需填写链接，以下内容会自动生成，也可以修改。</p><label>标题<input name="title" placeholder="自动读取文章标题" maxlength="180"></label><label>简介<textarea name="description" placeholder="自动读取文章简介" rows="3" maxlength="500"></textarea></label><label>封面网址（可选）<input name="image" type="url" placeholder="没有封面时留空，清空即可移除照片" maxlength="2048"></label><img class="external-bookmark-cover" alt="封面预览" hidden referrerpolicy="no-referrer"><p class="external-bookmark-error" role="alert" hidden></p><div class="external-bookmark-footer"><button type="submit" class="primary-button">添加收藏</button></div></form>`;
+  dialog.innerHTML = `<form id="external-bookmark-form"><div class="external-bookmark-heading"><div><p class="eyebrow">WEB BOOKMARK</p><h2>添加网络文章</h2></div><button type="button" class="outline-button" id="cancel-bookmark">取消</button></div><label>文章网址<input name="url" type="url" inputmode="url" placeholder="粘贴文章链接，自动读取预览" required maxlength="2048" autocomplete="url"></label><p class="external-bookmark-status" role="status">只需填写链接，以下内容会自动生成，也可以修改。</p><label>标题<input name="title" placeholder="自动读取文章标题" maxlength="180"></label><label>简介<textarea name="description" placeholder="自动读取文章简介" rows="3" maxlength="500"></textarea></label><label>标签（可选）<input name="tags" maxlength="650" placeholder="例如：大模型、待读、工程实践"></label><p class="external-bookmark-status">用逗号或顿号分隔，最多 20 个标签，每个不超过 30 字。</p><label>封面网址（可选）<input name="image" type="url" placeholder="没有封面时留空，清空即可移除照片" maxlength="2048"></label><img class="external-bookmark-cover" alt="封面预览" hidden referrerpolicy="no-referrer"><p class="external-bookmark-error" role="alert" hidden></p><div class="external-bookmark-footer"><button type="submit" class="primary-button">添加收藏</button></div></form>`;
   document.body.append(dialog);
   const form = dialog.querySelector("form"),
     fields = Object.fromEntries(
-      ["url", "title", "description", "image"].map((name) => [
+      ["url", "title", "description", "image", "tags"].map((name) => [
         name,
         form.elements.namedItem(name),
       ]),
@@ -36,7 +44,7 @@ export function openExternalBookmarkForm(onAdd) {
     dirty = new Set(),
     favicon = "";
   const updateCover = () => {
-    const url = safeLink(fields.image.value);
+    const url = safeImage(fields.image.value);
     cover.hidden = !url;
     if (url) cover.src = url;
     else cover.removeAttribute("src");
@@ -109,6 +117,19 @@ export function openExternalBookmarkForm(onAdd) {
       error.hidden = false;
       return;
     }
+    const tags = [
+      ...new Set(
+        fields.tags.value
+          .split(/[,，、\n]+/)
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (tags.length > 20 || tags.some((tag) => tag.length > 30)) {
+      error.textContent = "最多 20 个标签，每个不超过 30 字。";
+      error.hidden = false;
+      return;
+    }
     save.disabled = true;
     save.textContent = "正在添加…";
     fields.url.readOnly = true;
@@ -120,8 +141,9 @@ export function openExternalBookmarkForm(onAdd) {
         url,
         title: fields.title.value.trim() || new URL(url).hostname,
         description: fields.description.value.trim(),
-        image: safeLink(fields.image.value.trim()),
+        image: safeImage(fields.image.value.trim()),
         favicon,
+        tags,
       });
       if (added === false)
         throw Error("这条网址已经收藏，或浏览器未能保存，请检查后重试。");

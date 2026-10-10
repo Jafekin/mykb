@@ -114,12 +114,18 @@ def read_state(user):
     with connect() as conn: return {row['key']:json.loads(row['value']) for row in conn.execute('SELECT key,value FROM state WHERE user_id=?',(user['id'],))}
 
 def write_state(user,key,value):
-    if key not in ('saved','externalBookmarks','progress','last','legacyImported') and not re.fullmatch(r'draft\.[\w-]{1,100}',key or ''): raise ValueError('数据类型无效')
+    if key not in ('saved','savedTags','externalBookmarks','progress','last','legacyImported') and not re.fullmatch(r'draft\.[\w-]{1,100}',key or ''): raise ValueError('数据类型无效')
     if key in ('saved','progress') and not isinstance(value,dict): raise ValueError('收藏或进度格式无效')
+    if key=='savedTags':
+        if not isinstance(value,dict) or len(value)>10000: raise ValueError('收藏标签格式无效')
+        for item_id,tags in value.items():
+            if not isinstance(item_id,str) or len(item_id)>200 or not item_id.startswith(('local:','external:')) or not isinstance(tags,list) or len(tags)>20 or any(not isinstance(tag,str) or not tag.strip() or len(tag)>30 for tag in tags): raise ValueError('收藏标签内容无效')
     if key=='externalBookmarks':
         if not isinstance(value,list) or len(value)>3000: raise ValueError('外链收藏格式无效')
         for item in value:
             if not isinstance(item,dict) or any(not isinstance(item.get(name,''),str) for name in ('id','url','title','description','image','favicon')): raise ValueError('外链内容无效')
+            tags=item.get('tags',[])
+            if not isinstance(tags,list) or len(tags)>20 or any(not isinstance(tag,str) or not tag.strip() or len(tag)>30 for tag in tags): raise ValueError('外链标签无效')
     if key.startswith('draft.') and not isinstance(value,str): raise ValueError('草稿格式无效')
     serialized=json.dumps(value,ensure_ascii=False)
     if len(serialized.encode())>800000: raise ValueError('个人数据过大，请下载备份')

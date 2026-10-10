@@ -34,6 +34,32 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
   const editable = editableIndex.items.find(
     (item) => item.section === "notes" && !item.isIndex,
   );
+  for (const section of [
+    "notes",
+    "interview",
+    "problems",
+    "learning",
+    "papers",
+    "saved",
+  ]) {
+    await page.goto(url + "/" + section);
+    await expect(page.locator("#sort")).toHaveAttribute(
+      "aria-label",
+      "排列顺序",
+    );
+    await expect(page.locator("#scope")).toHaveCount(0);
+    await page.locator("#sort").selectOption("created-asc");
+    await expect(page).toHaveURL(/sort=created-asc/);
+    await page.reload();
+    await expect(page.locator("#sort")).toHaveValue("created-asc");
+  }
+  await page.goto(url + "/notes?sort=title-asc");
+  const expectedTitles = editableIndex.items
+    .filter((item) => item.section === "notes" && !item.isIndex)
+    .sort((a, b) => a.title.localeCompare(b.title, "zh-CN", { numeric: true }))
+    .slice(0, 18)
+    .map((item) => item.title);
+  await expect(page.locator(".card h2")).toHaveText(expectedTitles);
   await page.goto(url + "/notes?id=" + editable.id);
   expect(
     await page.evaluate(() =>
@@ -105,6 +131,33 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     const form = page.locator("#user-settings form");
     await form.locator("[name=username]").fill(name);
     await form.locator("[name=password]").fill(pw);
+    const notesGroup = form.locator('[data-visible-section="notes"]');
+    await expect(notesGroup).toBeChecked();
+    await notesGroup.uncheck();
+    await expect(form.locator('[name="allVisible"]')).not.toBeChecked();
+    expect(
+      await form.locator('[name="visible"][value^="notes::"]:checked').count(),
+    ).toBe(0);
+    await expect(
+      form.locator('[name="visible"][value^="interview::"]').first(),
+    ).toBeChecked();
+    await notesGroup.check();
+    await expect(
+      form.locator('[name="visible"][value^="notes::"]').first(),
+    ).toBeChecked();
+    await form
+      .locator('[name="visible"][value^="problems::"]')
+      .first()
+      .uncheck();
+    expect(
+      await form
+        .locator('[data-visible-section="problems"]')
+        .evaluate((input) => input.indeterminate),
+    ).toBe(true);
+    await form.locator('[name="allVisible"]').check();
+    await expect(
+      form.locator('[data-visible-section="problems"]'),
+    ).toBeChecked();
     await form.locator("[name=allVisible]").uncheck();
     await form
       .locator("[name=visible]")
@@ -157,8 +210,46 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await userPage
       .locator("[name=url]")
       .fill("https://example.com/private-bookmark");
+    await userPage.locator('[name="tags"]').fill("初始标签、初始标签");
     await userPage.locator("[type=submit]").click();
     await expect(userPage.getByText("测试外链", { exact: true })).toBeVisible();
+    await expect(
+      userPage.locator('.sidebar [data-saved-tag="初始标签"]'),
+    ).toBeVisible();
+    await userPage.reload();
+    await userPage.locator('.sidebar [data-saved-tag="初始标签"]').click();
+    await expect(userPage.getByText("测试外链", { exact: true })).toBeVisible();
+    await expect(userPage.getByText(item.title, { exact: true })).toHaveCount(
+      0,
+    );
+    await userPage.locator("[data-edit-tags]").click();
+    await userPage.locator('[name="tags"]').fill("");
+    await userPage.getByRole("button", { name: "保存标签" }).click();
+    await expect(userPage.locator("dialog")).toHaveCount(0);
+    await userPage.locator("#all-bookmarks").click();
+    await expect(userPage.locator(".sidebar button.active")).toHaveCount(1);
+    await expect(
+      userPage.locator(".sidebar .problem-subcategories"),
+    ).toHaveCount(2);
+    await userPage.locator("[data-edit-tags]").first().click();
+    await userPage.locator('[name="tags"]').fill("待读、技术、待读");
+    await userPage.getByRole("button", { name: "保存标签" }).click();
+    await expect(userPage.locator("dialog")).toHaveCount(0);
+    await userPage.locator('.sidebar [data-saved-tag="待读"]').click();
+    await expect(userPage.getByText(item.title, { exact: true })).toBeVisible();
+    await expect(userPage.getByText("测试外链", { exact: true })).toHaveCount(
+      0,
+    );
+    await userPage.locator("#untagged-bookmarks").click();
+    await expect(userPage.getByText("测试外链", { exact: true })).toBeVisible();
+    await expect(userPage.getByText(item.title, { exact: true })).toHaveCount(
+      0,
+    );
+    await userPage.locator("[data-edit-tags]").click();
+    await userPage.locator('[name="tags"]').fill("待读");
+    await userPage.getByRole("button", { name: "保存标签" }).click();
+    await expect(userPage.locator("dialog")).toHaveCount(0);
+    await userPage.locator('.sidebar [data-saved-tag="待读"]').click();
     const second = await browser.newContext(),
       secondPage = await second.newPage();
     await login(secondPage, name, pw);
@@ -168,6 +259,23 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await expect(
       secondPage.getByText(item.title, { exact: true }),
     ).toBeVisible();
+    await expect(
+      secondPage.locator('.sidebar [data-saved-tag="待读"]'),
+    ).toBeVisible();
+    await secondPage.locator('.sidebar [data-saved-tag="待读"]').click();
+    await expect(
+      secondPage.getByText("测试外链", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      secondPage.getByText(item.title, { exact: true }),
+    ).toBeVisible();
+    await secondPage.locator("[data-edit-tags]").first().click();
+    await secondPage.locator('[name="tags"]').fill("");
+    await secondPage.getByRole("button", { name: "保存标签" }).click();
+    await expect(secondPage.locator("dialog")).toHaveCount(0);
+    await expect(secondPage.getByText(item.title, { exact: true })).toHaveCount(
+      0,
+    );
     await page.reload();
     await expect(page.getByText("测试外链", { exact: true })).toHaveCount(0);
     await userPage.locator("#account-button").click();

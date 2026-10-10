@@ -25,12 +25,32 @@ try {
   await cp("src/jkb-logo-v2.png", "dist/jkb-logo-v2.png");
 } catch {}
 const html = await readFile("dist/index.html", "utf8");
+// Use the same local config and environment overrides as the API so the
+// initial document already has the configured name before JavaScript loads.
+let localConfig = {};
+try {
+  localConfig = JSON.parse(await readFile("config.local.json", "utf8"));
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+}
+const siteName = String(
+  process.env.MYKB_SITE_NAME ?? localConfig.site_name ?? "MyKB",
+);
+const escapedSiteName = siteName.replace(
+  /[&<>"']/g,
+  (character) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+      character
+    ],
+);
 await writeFile(
   "dist/index.html",
-  html.replace(
-    "</head>",
-    '<link rel="stylesheet" href="/assets/app.css"></head>',
-  ),
+  html
+    .replaceAll("MyKB", () => escapedSiteName)
+    .replace(
+      "</head>",
+      '<link rel="stylesheet" href="/assets/app.css"></head>',
+    ),
 );
 await cp("node_modules/katex/dist/katex.min.css", "dist/assets/katex.min.css");
 await cp("node_modules/katex/dist/fonts", "dist/assets/fonts", {

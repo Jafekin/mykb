@@ -216,11 +216,10 @@ body.dark .toastui-editor-defaultUI-toolbar button {
   border-left: 1px solid var(--line);
 }
 @media (max-width: 700px) {
-  .side-links:has(.problem-subcategories) {
-    flex-wrap: wrap;
-  }
   .problem-subcategories {
+    order: 1;
     flex: 0 0 100%;
+    min-width: 0;
     display: flex;
     gap: 8px;
     overflow-x: auto;
