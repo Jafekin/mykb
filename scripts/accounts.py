@@ -114,7 +114,11 @@ def read_state(user):
     with connect() as conn: return {row['key']:json.loads(row['value']) for row in conn.execute('SELECT key,value FROM state WHERE user_id=?',(user['id'],))}
 
 def write_state(user,key,value):
-    if key not in ('saved','savedTags','externalBookmarks','progress','last','legacyImported') and not re.fullmatch(r'draft\.[\w-]{1,100}',key or ''): raise ValueError('数据类型无效')
+    if key not in ('saved','savedTags','externalBookmarks','progress','last','legacyImported','accentTheme','learningOrder') and not re.fullmatch(r'draft\.[\w-]{1,100}',key or ''): raise ValueError('数据类型无效')
+    if key == 'learningOrder':
+        if not isinstance(value, list) or len(value) > 10000 or any(not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{16}', identity) for identity in value) or len(set(value)) != len(value):
+            raise ValueError('学习路径顺序格式无效')
+    if key=='accentTheme' and value not in ('blue','yellow'): raise ValueError('主题色无效')
     if key in ('saved','progress') and not isinstance(value,dict): raise ValueError('收藏或进度格式无效')
     if key=='savedTags':
         if not isinstance(value,dict) or len(value)>10000: raise ValueError('收藏标签格式无效')

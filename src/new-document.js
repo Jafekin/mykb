@@ -1,4 +1,5 @@
 import { loadEditor } from "./editor-loader.js";
+import { documentTemplate } from "./document-templates.js";
 
 const labels = {
   notes: "Note",
@@ -12,7 +13,7 @@ export async function openNewDocument(index, section, category, onCreated) {
   const dialog = document.createElement("dialog");
   dialog.className = "new-document-dialog";
   dialog.innerHTML =
-    '<form id="new-document-form"><div class="markdown-editor-head"><h2>新建文档</h2><button type="button" class="outline-button" id="cancel-document">取消</button></div><div class="document-fields"><label>标题<input id="document-title" required maxlength="120" placeholder="输入文档标题"></label><label>栏目<select id="document-section"></select></label><label>分类<input id="document-category" maxlength="80" list="document-categories" placeholder="留空归入综合，也可输入新分类"><datalist id="document-categories"></datalist></label></div><div class="markdown-editor"><div id="new-document-editor"></div></div><div class="editor-toolbar"><button type="button" class="outline-button" id="document-mode">Markdown 源码</button><button type="submit" class="primary-button" id="create-document">创建并保存</button><span id="document-status" class="draft-status" role="status"></span></div></form>';
+    '<form id="new-document-form"><div class="markdown-editor-head"><h2>新建文档</h2><button type="button" class="outline-button" id="cancel-document">取消</button></div><div class="document-fields"><label>标题<input id="document-title" required maxlength="120" placeholder="输入文档标题"></label><label>栏目<select id="document-section"></select></label><label>分类<input id="document-category" maxlength="80" list="document-categories" placeholder="留空归入综合，也可输入新分类"><datalist id="document-categories"></datalist></label></div><div class="markdown-editor"><div id="new-document-editor"></div></div><div class="editor-toolbar"><button type="button" class="outline-button" id="document-mode">所见即所得</button><button type="submit" class="primary-button" id="create-document">创建并保存</button><span id="document-status" class="draft-status" role="status"></span></div></form>';
   document.body.append(dialog);
   const $ = (s) => dialog.querySelector(s),
     select = $("#document-section"),
@@ -23,9 +24,15 @@ export async function openNewDocument(index, section, category, onCreated) {
     const option = document.createElement("option");
     option.value = id;
     option.textContent = label;
-    select.append(option);
+    if (section !== "saved") select.append(option);
   }
   select.value = labels[section] ? section : "notes";
+  if (section === "saved") {
+    select.add(new Option("我的收藏（仅自己可见）", "saved"));
+    select.value = "saved";
+    select.disabled = true;
+    input.placeholder = "留空归入个人文档";
+  }
   input.value = category || "";
   const categories = () => {
     $("#document-categories").replaceChildren(
@@ -46,16 +53,19 @@ export async function openNewDocument(index, section, category, onCreated) {
     );
   };
   categories();
-  select.onchange = () => {
-    input.value = "";
-    categories();
+  const categoryField = input.closest("label");
+  const updateCategoryField = () => {
+    categoryField.hidden = select.value === "learning";
+    input.disabled = select.value === "learning";
+    if (select.value === "learning") input.value = "";
   };
+  updateCategoryField();
   dialog.showModal();
   const editor = new Editor({
     el: $("#new-document-editor"),
     height: "400px",
-    initialEditType: "wysiwyg",
-    initialValue: "",
+    initialEditType: "markdown",
+    initialValue: documentTemplate(select.value),
     language: "zh-CN",
     hideModeSwitch: true,
     usageStatistics: false,
@@ -94,6 +104,20 @@ export async function openNewDocument(index, section, category, onCreated) {
   });
   title.oninput = input.oninput = () => {
     dirty = true;
+  };
+  const drafts = new Map();
+  let activeSection = select.value;
+  select.onchange = () => {
+    drafts.set(activeSection, {
+      body: editor.getMarkdown(),
+      category: input.value,
+    });
+    activeSection = select.value;
+    const draft = drafts.get(activeSection);
+    input.value = draft?.category ?? "";
+    editor.setMarkdown(draft?.body ?? documentTemplate(activeSection));
+    categories();
+    updateCategoryField();
   };
   const close = () => {
     if (saving) return;
@@ -135,7 +159,7 @@ export async function openNewDocument(index, section, category, onCreated) {
           body: JSON.stringify({
             title: title.value,
             section: select.value,
-            category: input.value,
+            category: select.value === "learning" ? "" : input.value,
             body,
           }),
         }),

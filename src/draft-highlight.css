@@ -11,7 +11,7 @@
   margin-top: 14px;
 }
 .draft-code-editor:focus-within {
-  outline: 3px solid #d38a60;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 .draft-code-editor .draft-highlight,

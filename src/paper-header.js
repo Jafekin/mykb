@@ -1,3 +1,5 @@
+import { paperCategoryBadge } from "./paper-category.js";
+
 const escapeHtml = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -38,8 +40,7 @@ export function paperHeader(item, source) {
   const date = (fields["发布日期"] || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   const authors = fields["作者"];
   const parts = [];
-  if (category)
-    parts.push(`<span class="paper-category">${escapeHtml(category)}</span>`);
+  if (category) parts.push(paperCategoryBadge(category));
   if (date)
     parts.push(`<time datetime="${date}">${date.replaceAll("-", "/")}</time>`);
   if (arxiv)

@@ -1,4 +1,6 @@
 const paths = {
+  sparkles:
+    '<path d="m9 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="currentColor"/><path d="M19 2v6m-3-3h6M19 16v4m-2-2h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   random: '<path d="m16 3 5 0 0 5M4 20 17 7M4 4l5 5m6 6 6 6m-5 0h5v-5"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
@@ -9,6 +11,10 @@ const paths = {
   back: '<path d="m10 5-7 7 7 7M3 12h18"/>',
 };
 
+export function actionIcon(icon) {
+  return `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[icon]}</svg>`;
+}
+
 export function articleAction(icon, label) {
-  return `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[icon]}</svg><span>${label}</span>`;
+  return `${actionIcon(icon)}<span>${label}</span>`;
 }

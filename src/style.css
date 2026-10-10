@@ -10,8 +10,10 @@
   --line: #e6e8ec;
   --text: #272b30;
   --muted: #757d88;
-  --accent: #b75a30;
-  --tint: #fcf0e8;
+  --accent: #2854c7;
+  --primary: #2854c7;
+  --primary-text: #fff;
+  --tint: #edf2ff;
   --code: #19232e;
 }
 * {
@@ -89,11 +91,30 @@ body.dark {
   --line: #323b46;
   --text: #e6e9ed;
   --muted: #a1acb9;
-  --accent: #f1a477;
-  --tint: #39291f;
+  --accent: #7096f3;
+  --tint: #202e4c;
   --code: #0c1118;
   background: var(--bg);
   color: var(--text);
+}
+body.yellow-theme {
+  --accent: #b75a30;
+  --primary: #b75a30;
+  --primary-text: #fff;
+  --tint: #fcf0e8;
+}
+body.dark.yellow-theme {
+  --accent: #f1a477;
+  --primary: #f1a477;
+  --tint: #39291f;
+}
+#brand-theme {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  flex-shrink: 0;
 }
 a {
   color: inherit;
@@ -121,7 +142,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
-  outline: 3px solid #d38a60;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 header {
@@ -334,9 +355,9 @@ nav a:hover {
   white-space: nowrap;
 }
 .primary-button {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
 }
 .outline-button.selected {
   color: var(--accent);
@@ -411,7 +432,7 @@ nav a:hover {
     transform 0.15s;
 }
 .card:hover {
-  border-color: #ce9f84;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   transform: translateY(-1px);
 }
 .card-meta {
@@ -422,6 +443,52 @@ nav a:hover {
   flex-wrap: wrap;
   font-size: 12px;
   color: var(--muted);
+}
+.category-label,
+.paper-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.category-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+  background: var(--tag-color, #475569);
+}
+.paper-category-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+  background: var(--paper-category-color, #475569);
+}
+.tag > .paper-category-dot {
+  margin-right: 6px;
+}
+.paper-category-cv {
+  --paper-category-color: #cf1322;
+}
+.paper-category-nlp {
+  --paper-category-color: #008489;
+}
+.paper-category-ml {
+  --paper-category-color: #238900;
+}
+.paper-category-ai {
+  --paper-category-color: #2f54eb;
+}
+.paper-category-ir {
+  --paper-category-color: #c15800;
+}
+.paper-category-ma {
+  --paper-category-color: #722ed1;
+}
+.paper-category-stat {
+  --paper-category-color: #008568;
 }
 .tag {
   padding: 3px 8px;
@@ -434,17 +501,20 @@ nav a:hover {
   background: var(--tint);
   color: var(--accent);
 }
+.tag.easy,
+.tag.medium,
+.tag.hard {
+  background: var(--surface);
+  border: 1px solid currentColor;
+}
 .tag.easy {
   color: #328869;
-  background: #32886914;
 }
 .tag.medium {
   color: #af7928;
-  background: #af792814;
 }
 .tag.hard {
   color: #bb505a;
-  background: #bb505a14;
 }
 .card h2 {
   font-size: 16px;
@@ -500,15 +570,49 @@ nav a:hover {
 }
 .card-save {
   position: absolute;
-  right: 16px;
-  top: 20px;
+  right: 12px;
+  top: 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
   color: var(--muted);
-  font-size: 21px;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+.card-save .action-icon {
+  width: 19px;
+  height: 19px;
+}
+.card-save:hover {
+  color: var(--accent);
+  background: var(--tint);
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.card-save:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .card-save.saved {
   color: var(--accent);
+  background: var(--tint);
+}
+.card-save.saved .action-icon {
+  fill: currentColor;
+}
+.card:has(.card-save) .card-meta {
+  padding-right: 32px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-save {
+    transition: none;
+  }
 }
 .grid-cards {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -616,7 +720,7 @@ button:disabled {
   margin: 6px 0;
 }
 .prose blockquote {
-  border-left: 3px solid #d4966f;
+  border-left: 3px solid var(--accent);
   margin: 18px 0;
   background: var(--tint);
   padding: 8px 20px;
@@ -713,6 +817,36 @@ button:disabled {
 }
 .toc a:hover {
   color: var(--accent);
+}
+.toc .back-to-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-weight: 500;
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+.toc .back-to-section .action-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+.toc .back-to-section:hover {
+  color: var(--accent);
+  background: var(--tint);
+}
+.toc .back-to-section:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toc .back-to-section {
+    transition: none;
+  }
 }
 .toc a.sub {
   padding-left: 13px;
@@ -1261,12 +1395,30 @@ body.dark .judge-result.failed {
   box-shadow: 0 2px 5px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .page-title-actions .primary-button:hover {
-  background: color-mix(in srgb, var(--accent) 90%, var(--text));
-  border-color: color-mix(in srgb, var(--accent) 90%, var(--text));
+  background: color-mix(in srgb, var(--primary) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--primary) 90%, var(--text));
 }
 .page-title-actions button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+.page-title-actions .paper-featured-button {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: none;
+}
+.page-title-actions .paper-featured-button[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+.page-title-actions .paper-featured-button[aria-pressed="true"] {
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.page-title-actions .paper-featured-button[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--primary) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--primary) 90%, var(--text));
 }
 #search-form {
   gap: 10px;
@@ -1353,5 +1505,1261 @@ body.dark .judge-result.failed {
   #search-form input[type="search"],
   #search-form select {
     transition: none;
+  }
+}
+
+.tag.paper-category-badge {
+  background: var(--paper-category-color, #475569);
+  color: #fff;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+}
+
+/* Fixed category colors stay consistent across light/dark and accent themes. */
+.tag.colored-tag {
+  background: color-mix(
+    in srgb,
+    var(--tag-color, var(--accent)) 11%,
+    var(--surface)
+  );
+  color: var(--tag-color, var(--accent));
+  font-weight: 650;
+  border-color: transparent;
+}
+body.dark .tag.colored-tag {
+  background: color-mix(
+    in srgb,
+    var(--tag-color, var(--accent)) 20%,
+    var(--surface)
+  );
+  color: color-mix(in srgb, var(--tag-color, var(--accent)) 55%, #fff);
+}
+.tag.accent {
+  background: var(--tag-color, var(--primary));
+  color: #fff;
+  font-weight: 650;
+  border-color: transparent;
+}
+.tag-color-0 {
+  --tag-color: #2f54eb;
+}
+.tag-color-1 {
+  --tag-color: #008489;
+}
+.tag-color-2 {
+  --tag-color: #238900;
+}
+.tag-color-3 {
+  --tag-color: #722ed1;
+}
+.tag-color-4 {
+  --tag-color: #c15800;
+}
+.tag-color-5 {
+  --tag-color: #cf1322;
+}
+.tag-color-6 {
+  --tag-color: #c41d7f;
+}
+.tag-color-7 {
+  --tag-color: #096dd9;
+}
+
+.tag-color-8 {
+  --tag-color: #d4380d;
+}
+
+.tag-color-9 {
+  --tag-color: #af6300;
+}
+
+.tag-color-10 {
+  --tag-color: #528300;
+}
+
+.tag-color-11 {
+  --tag-color: #475569;
+}
+
+.tag-color-12 {
+  --tag-color: #2d52eb;
+}
+
+.tag-color-13 {
+  --tag-color: #008388;
+}
+
+.tag-color-14 {
+  --tag-color: #248900;
+}
+
+.tag-color-15 {
+  --tag-color: #712ecf;
+}
+
+.tag-color-16 {
+  --tag-color: #c05800;
+}
+
+.tag-color-17 {
+  --tag-color: #cd1322;
+}
+
+.tag-color-18 {
+  --tag-color: #c21d7e;
+}
+
+.tag-color-19 {
+  --tag-color: #096cd7;
+}
+
+.tag-color-20 {
+  --tag-color: #d2370d;
+}
+
+.tag-color-21 {
+  --tag-color: #af6400;
+}
+
+.tag-color-22 {
+  --tag-color: #538300;
+}
+
+.tag-color-23 {
+  --tag-color: #465468;
+}
+
+.tag-color-24 {
+  --tag-color: #2b51eb;
+}
+
+.tag-color-25 {
+  --tag-color: #008287;
+}
+
+.tag-color-26 {
+  --tag-color: #268900;
+}
+
+.tag-color-27 {
+  --tag-color: #702dce;
+}
+
+.tag-color-28 {
+  --tag-color: #bf5800;
+}
+
+.tag-color-29 {
+  --tag-color: #cb1321;
+}
+
+.tag-color-30 {
+  --tag-color: #c01c7d;
+}
+
+.tag-color-31 {
+  --tag-color: #096bd5;
+}
+
+.tag-color-32 {
+  --tag-color: #d0370d;
+}
+
+.tag-color-33 {
+  --tag-color: #ae6300;
+}
+
+.tag-color-34 {
+  --tag-color: #528200;
+}
+
+.tag-color-35 {
+  --tag-color: #455367;
+}
+
+.tag-color-36 {
+  --tag-color: #294fea;
+}
+
+.tag-color-37 {
+  --tag-color: #008186;
+}
+
+.tag-color-38 {
+  --tag-color: #278900;
+}
+
+.tag-color-39 {
+  --tag-color: #6f2dcc;
+}
+
+.tag-color-40 {
+  --tag-color: #bf5900;
+}
+
+.tag-color-41 {
+  --tag-color: #c91221;
+}
+
+.tag-color-42 {
+  --tag-color: #bf1c7c;
+}
+
+.tag-color-43 {
+  --tag-color: #096ad3;
+}
+
+.tag-color-44 {
+  --tag-color: #ce360d;
+}
+
+.tag-color-45 {
+  --tag-color: #ae6400;
+}
+
+.tag-color-46 {
+  --tag-color: #548300;
+}
+
+.tag-color-47 {
+  --tag-color: #455265;
+}
+
+.tag-color-48 {
+  --tag-color: #284eea;
+}
+
+.tag-color-49 {
+  --tag-color: #008085;
+}
+
+.tag-color-50 {
+  --tag-color: #278800;
+}
+
+.tag-color-51 {
+  --tag-color: #6e2dca;
+}
+
+.tag-color-52 {
+  --tag-color: #be5900;
+}
+
+.tag-color-53 {
+  --tag-color: #c81221;
+}
+
+.tag-color-54 {
+  --tag-color: #bd1c7a;
+}
+
+.tag-color-55 {
+  --tag-color: #0969d1;
+}
+
+.tag-color-56 {
+  --tag-color: #cc360d;
+}
+
+.tag-color-57 {
+  --tag-color: #ae6500;
+}
+
+.tag-color-58 {
+  --tag-color: #558300;
+}
+
+.tag-color-59 {
+  --tag-color: #445164;
+}
+
+.tag-color-60 {
+  --tag-color: #264cea;
+}
+
+.tag-color-61 {
+  --tag-color: #008488;
+}
+
+.tag-color-62 {
+  --tag-color: #288800;
+}
+
+.tag-color-63 {
+  --tag-color: #6d2cc9;
+}
+
+.tag-color-64 {
+  --tag-color: #be5a00;
+}
+
+.tag-color-65 {
+  --tag-color: #c61220;
+}
+
+.tag-color-66 {
+  --tag-color: #bb1c79;
+}
+
+.tag-color-67 {
+  --tag-color: #0968cf;
+}
+
+.tag-color-68 {
+  --tag-color: #ca350c;
+}
+
+.tag-color-69 {
+  --tag-color: #ad6500;
+}
+
+.tag-color-70 {
+  --tag-color: #548200;
+}
+
+.tag-color-71 {
+  --tag-color: #435063;
+}
+
+.tag-color-72 {
+  --tag-color: #244bea;
+}
+
+.tag-color-73 {
+  --tag-color: #008387;
+}
+
+.tag-color-74 {
+  --tag-color: #298801;
+}
+
+.tag-color-75 {
+  --tag-color: #6d2cc7;
+}
+
+.tag-color-76 {
+  --tag-color: #bd5a00;
+}
+
+.tag-color-77 {
+  --tag-color: #c41220;
+}
+
+.tag-color-78 {
+  --tag-color: #b91b78;
+}
+
+.tag-color-79 {
+  --tag-color: #0967cd;
+}
+
+.tag-color-80 {
+  --tag-color: #c8350c;
+}
+
+.tag-color-81 {
+  --tag-color: #ac6400;
+}
+
+.tag-color-82 {
+  --tag-color: #538000;
+}
+
+.tag-color-83 {
+  --tag-color: #424f62;
+}
+
+.tag-color-84 {
+  --tag-color: #2249ea;
+}
+
+.tag-color-85 {
+  --tag-color: #018488;
+}
+
+.tag-color-86 {
+  --tag-color: #2a8803;
+}
+
+.tag-color-87 {
+  --tag-color: #6c2bc5;
+}
+
+.tag-color-88 {
+  --tag-color: #bd5b00;
+}
+
+.tag-color-89 {
+  --tag-color: #c21220;
+}
+
+.tag-color-90 {
+  --tag-color: #b81b77;
+}
+
+.tag-color-91 {
+  --tag-color: #0866cb;
+}
+
+.tag-color-92 {
+  --tag-color: #c7340c;
+}
+
+.tag-color-93 {
+  --tag-color: #ac6500;
+}
+
+.tag-color-94 {
+  --tag-color: #527e00;
+}
+
+.tag-color-95 {
+  --tag-color: #414e60;
+}
+
+.tag-color-96 {
+  --tag-color: #2048ea;
+}
+
+.tag-color-97 {
+  --tag-color: #038488;
+}
+
+.tag-color-98 {
+  --tag-color: #2c8805;
+}
+
+.tag-color-99 {
+  --tag-color: #6b2bc4;
+}
+
+.tag-color-100 {
+  --tag-color: #bc5b00;
+}
+
+.tag-color-101 {
+  --tag-color: #c01220;
+}
+
+.tag-color-102 {
+  --tag-color: #b61b76;
+}
+
+.tag-color-103 {
+  --tag-color: #0865c9;
+}
+
+.tag-color-104 {
+  --tag-color: #c5340c;
+}
+
+.tag-color-105 {
+  --tag-color: #ac6600;
+}
+
+.tag-color-106 {
+  --tag-color: #507c00;
+}
+
+.tag-color-107 {
+  --tag-color: #404d5f;
+}
+
+.tag-color-108 {
+  --tag-color: #1e46e9;
+}
+
+.tag-color-109 {
+  --tag-color: #048388;
+}
+
+.tag-color-110 {
+  --tag-color: #2d8807;
+}
+
+.tag-color-111 {
+  --tag-color: #6a2bc2;
+}
+
+.tag-color-112 {
+  --tag-color: #bb5b00;
+}
+
+.tag-color-113 {
+  --tag-color: #be111f;
+}
+
+.tag-color-114 {
+  --tag-color: #b41b75;
+}
+
+.tag-color-115 {
+  --tag-color: #0864c7;
+}
+
+.tag-color-116 {
+  --tag-color: #c3330c;
+}
+
+.tag-color-117 {
+  --tag-color: #ab6600;
+}
+
+.tag-color-118 {
+  --tag-color: #507a00;
+}
+
+.tag-color-119 {
+  --tag-color: #404c5e;
+}
+
+.tag-color-120 {
+  --tag-color: #1c45e9;
+}
+
+.tag-color-121 {
+  --tag-color: #068388;
+}
+
+.tag-color-122 {
+  --tag-color: #2e8808;
+}
+
+.tag-color-123 {
+  --tag-color: #692ac0;
+}
+
+.tag-color-124 {
+  --tag-color: #bb5c02;
+}
+
+.tag-color-125 {
+  --tag-color: #bc111f;
+}
+
+.tag-color-126 {
+  --tag-color: #b21a73;
+}
+
+.tag-color-127 {
+  --tag-color: #0863c5;
+}
+
+.tag-color-128 {
+  --tag-color: #c1330c;
+}
+
+.tag-color-129 {
+  --tag-color: #aa6500;
+}
+
+.tag-color-130 {
+  --tag-color: #4f7900;
+}
+
+.tag-color-131 {
+  --tag-color: #3f4b5d;
+}
+
+.tag-color-132 {
+  --tag-color: #1b43e9;
+}
+
+.tag-color-133 {
+  --tag-color: #078287;
+}
+
+.tag-color-134 {
+  --tag-color: #30880a;
+}
+
+.tag-color-135 {
+  --tag-color: #682abf;
+}
+
+.tag-color-136 {
+  --tag-color: #ba5c03;
+}
+
+.tag-color-137 {
+  --tag-color: #ba111f;
+}
+
+.tag-color-138 {
+  --tag-color: #b01a72;
+}
+
+.tag-color-139 {
+  --tag-color: #0862c3;
+}
+
+.tag-color-140 {
+  --tag-color: #bf320c;
+}
+
+.tag-color-141 {
+  --tag-color: #aa6600;
+}
+
+.tag-color-142 {
+  --tag-color: #4e7800;
+}
+
+.tag-color-143 {
+  --tag-color: #3e4a5c;
+}
+
+.tag-color-144 {
+  --tag-color: #1942e9;
+}
+
+.tag-color-145 {
+  --tag-color: #078085;
+}
+
+.tag-color-146 {
+  --tag-color: #30870b;
+}
+
+.tag-color-147 {
+  --tag-color: #672abd;
+}
+
+.tag-color-148 {
+  --tag-color: #ba5d05;
+}
+
+.tag-color-149 {
+  --tag-color: #b9111e;
+}
+
+.tag-color-150 {
+  --tag-color: #af1a71;
+}
+
+.tag-color-151 {
+  --tag-color: #0861c1;
+}
+
+.tag-color-152 {
+  --tag-color: #bd320c;
+}
+
+.tag-color-153 {
+  --tag-color: #aa6700;
+}
+
+.tag-color-154 {
+  --tag-color: #4d7700;
+}
+
+.tag-color-155 {
+  --tag-color: #3d495a;
+}
+
+.tag-color-156 {
+  --tag-color: #1740e9;
+}
+
+.tag-color-157 {
+  --tag-color: #077f83;
+}
+
+.tag-color-158 {
+  --tag-color: #2f850b;
+}
+
+.tag-color-159 {
+  --tag-color: #6629bb;
+}
+
+.tag-color-160 {
+  --tag-color: #b95d06;
+}
+
+.tag-color-161 {
+  --tag-color: #b7111e;
+}
+
+.tag-color-162 {
+  --tag-color: #ad1a70;
+}
+
+.tag-color-163 {
+  --tag-color: #0860c0;
+}
+
+.tag-color-164 {
+  --tag-color: #bb310b;
+}
+
+.tag-color-165 {
+  --tag-color: #a96600;
+}
+
+.tag-color-166 {
+  --tag-color: #4c7600;
+}
+
+.tag-color-167 {
+  --tag-color: #3c4859;
+}
+
+.tag-color-168 {
+  --tag-color: #163fe7;
+}
+
+.tag-color-169 {
+  --tag-color: #077d81;
+}
+
+.tag-color-170 {
+  --tag-color: #2f840b;
+}
+
+.tag-color-171 {
+  --tag-color: #6529ba;
+}
+
+.tag-color-172 {
+  --tag-color: #b85d07;
+}
+
+.tag-color-173 {
+  --tag-color: #b5111e;
+}
+
+.tag-color-174 {
+  --tag-color: #ab196f;
+}
+
+.tag-color-175 {
+  --tag-color: #085fbe;
+}
+
+.tag-color-176 {
+  --tag-color: #b9310b;
+}
+
+.tag-color-177 {
+  --tag-color: #a96700;
+}
+
+.tag-color-178 {
+  --tag-color: #4b7500;
+}
+
+.tag-color-179 {
+  --tag-color: #3b4758;
+}
+
+.tag-color-180 {
+  --tag-color: #163fe5;
+}
+
+.tag-color-181 {
+  --tag-color: #077b7f;
+}
+
+.tag-color-182 {
+  --tag-color: #2e820b;
+}
+
+.tag-color-183 {
+  --tag-color: #6428b8;
+}
+
+.tag-color-184 {
+  --tag-color: #b75c07;
+}
+
+.tag-color-185 {
+  --tag-color: #b3101d;
+}
+
+.tag-color-186 {
+  --tag-color: #a9196e;
+}
+
+.tag-color-187 {
+  --tag-color: #085ebc;
+}
+
+.tag-color-188 {
+  --tag-color: #b7300b;
+}
+
+.tag-color-189 {
+  --tag-color: #a86700;
+}
+
+.tag-color-190 {
+  --tag-color: #4a7400;
+}
+
+.tag-color-191 {
+  --tag-color: #3b4657;
+}
+
+.tag-color-192 {
+  --tag-color: #163ee3;
+}
+
+.tag-color-193 {
+  --tag-color: #06797d;
+}
+
+.tag-color-194 {
+  --tag-color: #2d800b;
+}
+
+.tag-color-195 {
+  --tag-color: #6328b6;
+}
+
+.tag-color-196 {
+  --tag-color: #b55b07;
+}
+
+.tag-color-197 {
+  --tag-color: #b1101d;
+}
+
+.tag-color-198 {
+  --tag-color: #a8196d;
+}
+
+.tag-color-199 {
+  --tag-color: #085dba;
+}
+
+.tag-color-200 {
+  --tag-color: #b5300b;
+}
+
+.tag-color-201 {
+  --tag-color: #a86800;
+}
+
+.tag-color-202 {
+  --tag-color: #497300;
+}
+
+.tag-color-203 {
+  --tag-color: #3a4556;
+}
+
+.tag-color-204 {
+  --tag-color: #163ee2;
+}
+
+.tag-color-205 {
+  --tag-color: #06777b;
+}
+
+.tag-color-206 {
+  --tag-color: #2d7e0a;
+}
+
+.tag-color-207 {
+  --tag-color: #6228b5;
+}
+
+.tag-color-208 {
+  --tag-color: #b35a07;
+}
+
+.tag-color-209 {
+  --tag-color: #af101d;
+}
+
+.tag-color-210 {
+  --tag-color: #a6196b;
+}
+
+.tag-color-211 {
+  --tag-color: #085cb8;
+}
+
+.tag-color-212 {
+  --tag-color: #b32f0b;
+}
+
+.tag-color-213 {
+  --tag-color: #a76700;
+}
+
+.tag-color-214 {
+  --tag-color: #487200;
+}
+
+.tag-color-215 {
+  --tag-color: #394454;
+}
+
+.tag-color-216 {
+  --tag-color: #163de0;
+}
+
+.tag-color-217 {
+  --tag-color: #067579;
+}
+
+.tag-color-218 {
+  --tag-color: #2c7c0a;
+}
+
+.tag-color-219 {
+  --tag-color: #6227b3;
+}
+
+.tag-color-220 {
+  --tag-color: #b15907;
+}
+
+.tag-color-221 {
+  --tag-color: #ad101c;
+}
+
+.tag-color-222 {
+  --tag-color: #a4186a;
+}
+
+.tag-color-223 {
+  --tag-color: #085bb6;
+}
+
+.tag-color-224 {
+  --tag-color: #b12f0b;
+}
+
+.tag-color-225 {
+  --tag-color: #a76800;
+}
+
+.tag-color-226 {
+  --tag-color: #477100;
+}
+
+.tag-color-227 {
+  --tag-color: #384353;
+}
+
+.tag-color-228 {
+  --tag-color: #153dde;
+}
+
+.tag-color-229 {
+  --tag-color: #067377;
+}
+
+.tag-color-230 {
+  --tag-color: #2b7a0a;
+}
+
+.tag-color-231 {
+  --tag-color: #6127b1;
+}
+
+.tag-color-232 {
+  --tag-color: #af5807;
+}
+
+.tag-color-233 {
+  --tag-color: #ab101c;
+}
+
+.tag-color-234 {
+  --tag-color: #a21869;
+}
+
+.tag-color-235 {
+  --tag-color: #075ab4;
+}
+
+.tag-color-236 {
+  --tag-color: #af2e0b;
+}
+
+.tag-color-237 {
+  --tag-color: #a76900;
+}
+
+.tag-color-238 {
+  --tag-color: #467000;
+}
+
+.tag-color-239 {
+  --tag-color: #374252;
+}
+
+.tag-color-240 {
+  --tag-color: #153cdc;
+}
+
+.tag-color-241 {
+  --tag-color: #067175;
+}
+
+.tag-color-242 {
+  --tag-color: #2b780a;
+}
+
+.tag-color-243 {
+  --tag-color: #6027b0;
+}
+
+.tag-color-244 {
+  --tag-color: #ad5707;
+}
+
+.tag-color-245 {
+  --tag-color: #aa101c;
+}
+
+.tag-color-246 {
+  --tag-color: #a01868;
+}
+
+.tag-color-247 {
+  --tag-color: #0759b2;
+}
+
+.tag-color-248 {
+  --tag-color: #ae2e0b;
+}
+
+.tag-color-249 {
+  --tag-color: #a66900;
+}
+
+.tag-color-250 {
+  --tag-color: #456f00;
+}
+
+.tag-color-251 {
+  --tag-color: #374151;
+}
+
+.tag-color-252 {
+  --tag-color: #153cda;
+}
+
+.tag-color-253 {
+  --tag-color: #067174;
+}
+
+.tag-color-254 {
+  --tag-color: #2a760a;
+}
+
+.tag-color-255 {
+  --tag-color: #5f26ae;
+}
+
+/* Interview pages keep the question in the header and the answer below it. */
+.interview-article .article-title {
+  font-size: clamp(22px, 2.1vw, 28px);
+  line-height: 1.55;
+}
+.interview-article details.answer {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.interview-article details.answer summary {
+  padding: 18px 20px;
+  background: var(--soft);
+}
+.interview-article details.answer[open] {
+  padding: 0 20px 20px;
+}
+.interview-article details.answer[open] summary {
+  margin: 0 -20px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.toc a[hidden] {
+  display: none;
+}
+
+.grid-cards > .card {
+  display: flex;
+}
+.grid-cards > .card > a {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+.grid-cards .card-footer {
+  margin-top: auto;
+  padding-top: 15px;
+  align-items: center;
+}
+
+.learning-sidebar {
+  padding: 0;
+}
+.learning-sidebar .side-label {
+  margin: 0 0 10px;
+  padding-left: 16px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.learning-files {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  flex: none;
+  gap: 2px;
+  margin: 0;
+  overflow-x: hidden;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.learning-files a {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  line-height: 1.6;
+  font-weight: 600;
+  padding: 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.learning-files a:hover {
+  background: var(--tint);
+  color: var(--accent);
+}
+.learning-files a.active {
+  background: var(--tint);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: none;
+}
+.learning-files a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.learning-sidebar .page-title-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding: 0;
+}
+.learning-sidebar .primary-button {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+}
+.learning-sidebar .primary-button:hover {
+  background: var(--soft);
+  border-color: var(--line);
+  color: var(--text);
+}
+.learning-layout > main {
+  min-width: 0;
+}
+.learning-layout .article-card {
+  padding: 28px 34px;
+}
+.learning-layout .article-title {
+  font-size: clamp(23px, 2vw, 28px);
+  line-height: 1.4;
+  margin: 0 0 16px;
+}
+.learning-layout .article-actions {
+  padding-bottom: 20px;
+  margin-bottom: 22px;
+}
+.learning-layout .prose {
+  line-height: 1.8;
+}
+.learning-layout .prose :is(h1, h2) {
+  font-size: 21px;
+  line-height: 1.5;
+  margin: 28px 0 12px;
+}
+.learning-layout .prose h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 22px 0 10px;
+}
+.learning-layout .prose h4 {
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 18px 0 8px;
+}
+.learning-layout .prose > :first-child {
+  margin-top: 0;
+}
+.learning-layout .prose .table-scroll {
+  margin: 14px 0 22px;
+}
+.learning-layout .prose th {
+  font-weight: 600;
+}
+.learning-layout > .toc {
+  display: none;
+}
+@media (max-width: 700px) {
+  .learning-sidebar {
+    margin-bottom: 20px;
+    padding: 0;
+  }
+  .learning-sidebar .side-label {
+    display: block;
+  }
+  .learning-files {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .learning-files a {
+    width: auto;
+    flex: 0 0 auto;
+    max-width: 240px;
+  }
+  .learning-sidebar .page-title-actions {
+    padding: 0;
+  }
+  .learning-layout .article-card {
+    padding: 22px 18px;
+  }
+  .learning-layout .prose {
+    font-size: 15px;
+  }
+}
+
+.learning-files a[draggable] {
+  cursor: grab;
+}
+.learning-files a.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+.learning-files a.drop-before {
+  box-shadow: inset 0 2px var(--accent);
+}
+.learning-files a.drop-after {
+  box-shadow: inset 0 -2px var(--accent);
+}
+@media (max-width: 700px) {
+  .learning-files a.drop-before {
+    box-shadow: inset 2px 0 var(--accent);
+  }
+  .learning-files a.drop-after {
+    box-shadow: inset -2px 0 var(--accent);
   }
 }

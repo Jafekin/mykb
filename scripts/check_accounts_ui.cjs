@@ -12,7 +12,7 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
   const adminContext = await browser.newContext(),
     page = await adminContext.newPage(),
     errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => errors.push(error.stack || error.message));
   const password = fs
     .readFileSync("private/admin-initial-password.txt", "utf8")
     .split("初始密码：")[1]
@@ -43,6 +43,12 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     "saved",
   ]) {
     await page.goto(url + "/" + section);
+    if (section === "learning") {
+      await expect(page.locator(".learning-files a")).toHaveCount(1);
+      await expect(page.locator("#article-body")).toBeVisible();
+      await expect(page.locator("#sort")).toHaveCount(0);
+      continue;
+    }
     await expect(page.locator("#sort")).toHaveAttribute(
       "aria-label",
       "排列顺序",
@@ -85,6 +91,11 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
   });
   expect(cachedAsset.status()).toBe(304);
   await page.locator("#edit-markdown").click();
+  await expect(
+    page.locator('.toastui-editor-md-container [contenteditable="true"]'),
+  ).toBeVisible();
+  await expect(page.locator("#editor-mode")).toHaveText("所见即所得");
+  await page.locator("#editor-mode").click();
   const richText = page.locator(
     '.toastui-editor-ww-container [contenteditable="true"]',
   );
@@ -176,7 +187,9 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     await page.locator("[data-close]").click();
     const userContext = await browser.newContext(),
       userPage = await userContext.newPage();
-    userPage.on("pageerror", (error) => errors.push(error.message));
+    userPage.on("pageerror", (error) =>
+      errors.push(error.stack || error.message),
+    );
     await login(userPage, name, pw);
     await expect(userPage.locator("#rebuild-index")).toBeHidden();
     await userPage.locator("#account-button").click();
@@ -297,6 +310,70 @@ const url = process.env.SITE_URL || "http://127.0.0.1:4173";
     );
     await page.reload();
     await expect(page.getByText("测试外链", { exact: true })).toHaveCount(0);
+    await userPage.goto(url + "/saved");
+    await expect(userPage.locator("#add-external-bookmark")).toBeVisible();
+    await userPage.locator("#new-document").click();
+    await userPage.locator("#document-title").fill("普通用户私有文档");
+    await expect(userPage.locator("#document-section")).toBeDisabled();
+    await expect(
+      userPage.locator(
+        '.new-document-dialog .toastui-editor-md-container [contenteditable="true"]',
+      ),
+    ).toBeVisible();
+    await expect(userPage.locator("#document-mode")).toHaveText("所见即所得");
+    await userPage.locator("#document-mode").click();
+    await userPage
+      .locator(
+        '.new-document-dialog .toastui-editor-ww-container [contenteditable="true"]',
+      )
+      .fill("独立存储的个人正文");
+    await userPage.locator("#create-document").click();
+    await expect(userPage.locator(".article-title")).toHaveText(
+      "普通用户私有文档",
+    );
+    await expect(userPage.locator("#article-body")).toContainText(
+      "独立存储的个人正文",
+    );
+    const privateId = new URL(userPage.url()).searchParams.get("id");
+    expect(
+      (
+        await adminContext.request.get(
+          url + "/data/articles/" + privateId + ".json",
+        )
+      ).status(),
+    ).toBe(404);
+    await secondPage.goto(url + "/saved?id=" + privateId);
+    await expect(secondPage.locator("#article-body")).toContainText(
+      "独立存储的个人正文",
+    );
+    await userPage.locator("#edit-markdown").click();
+    await expect(
+      userPage.locator('.toastui-editor-md-container [contenteditable="true"]'),
+    ).toBeVisible();
+    await userPage.locator("#editor-mode").click();
+    const privateEditor = userPage.locator(
+      '.toastui-editor-ww-container [contenteditable="true"]',
+    );
+    await expect(privateEditor).toBeVisible();
+    await privateEditor.click();
+    await userPage.keyboard.press("Control+End");
+    await userPage.keyboard.press("Enter");
+    await userPage.keyboard.insertText("私有文档修改成功");
+    await userPage.locator("#save-markdown").click();
+    await expect(userPage.locator("#article-body")).toContainText(
+      "私有文档修改成功",
+    );
+    await userPage.goto(url + "/saved");
+    await expect(
+      userPage.getByText("普通用户私有文档", { exact: true }),
+    ).toBeVisible();
+    await userPage.getByText("普通用户私有文档", { exact: true }).click();
+    userPage.once("dialog", (dialog) => dialog.accept());
+    await userPage.locator("#delete-document").click();
+    await expect(userPage).toHaveURL(url + "/saved");
+    await expect(
+      userPage.getByText("普通用户私有文档", { exact: true }),
+    ).toHaveCount(0);
     await userPage.locator("#account-button").click();
     await userPage.locator("#logout").click();
     await expect(userPage.locator(".login-card")).toBeVisible();

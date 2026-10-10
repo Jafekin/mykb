@@ -7,6 +7,7 @@ import posixpath
 import gzip
 from http_compression import accepts_gzip
 import accounts
+import personal_documents
 
 from judge_tests import TESTS
 from link_metadata import fetch_link_metadata
@@ -213,6 +214,8 @@ def create_article(payload):
     if not isinstance(category, str) or len(category) > 80:
         return 400, {"message": "分类最多 80 个字符"}
     category = category.strip()
+    if section == "learning":
+        category = ""
     for name in [title, category]:
         if name and (name.startswith('.') or name.endswith('.') or re.search(r'[\\/:*?"<>|\x00-\x1f\x7f]', name)):
             return 400, {"message": "标题和分类不能包含路径符号、控制字符或以点开头/结尾"}
@@ -336,6 +339,9 @@ class Handler(SimpleHTTPRequestHandler):
     def content_index(self, user, summary=False):
         data=json.loads(INDEX.read_text(encoding='utf-8'))
         data['items']=[item for item in data['items'] if accounts.visible(user,item)]
+        personal = personal_documents.list_items(user)
+        data['items'].extend(personal)
+        data['generatedAt'] += ':'+hashlib.sha256(json.dumps([(item['id'], item['modifiedAt']) for item in personal]).encode()).hexdigest()[:16]
         if summary:
             data['items']=[{key:value for key,value in item.items() if key != 'search'} for item in data['items']]
         ids={item['id'] for item in data['items']}
@@ -406,7 +412,24 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == '/api/index/rebuild' and not user['admin']:
             self.json_response(403,{'message':'仅管理员可重建索引'});return
+        if path == '/api/articles' and payload.get('section') == 'saved':
+            try:
+                status, result = personal_documents.create(user, payload)
+                self.json_response(status, result)
+            except ValueError as error:
+                self.json_response(400, {'message': str(error)})
+            return
+        if path.startswith('/api/articles/personal-'):
+            identity = path.removeprefix('/api/articles/').removesuffix('/delete')
+            try:
+                status, result = personal_documents.change(user, identity, payload, delete=path.endswith('/delete'))
+                self.json_response(status, result)
+            except ValueError as error:
+                self.json_response(400, {'message': str(error)})
+            return
         if path == '/api/articles':
+            if payload.get('section') == 'learning':
+                payload['category'] = ''
             if not accounts.may(user,'create') or not accounts.visible(user,{'section':payload.get('section',''),'category':payload.get('category') or '综合'}):
                 self.json_response(403,{'message':'没有此分类的新建权限'});return
         if path.startswith('/api/articles/') or path == '/api/judge':
@@ -456,6 +479,14 @@ class Handler(SimpleHTTPRequestHandler):
             catalog=sorted({(item['section'],item['category']) for item in data['items']})
             self.json_response(200,{'users':accounts.users(),'categories':[{'section':section,'category':category,'key':section+'::'+category} for section,category in catalog]});return
         if path=='/data/index.json':self.json_response(200,self.content_index(user,summary=summary_index));return
+        if path.startswith('/data/articles/personal-') or path.startswith('/api/articles/personal-'):
+            identity = path.removeprefix('/data/articles/').removeprefix('/api/articles/')
+            if path.startswith('/data/articles/'):
+                if not identity.endswith('.json'):
+                    self.json_response(404, {'message': '文档不存在'}); return
+                identity = identity.removesuffix('.json')
+            status, result = personal_documents.read(user, identity)
+            self.json_response(status, result); return
         if path.startswith('/data/articles/'):
             article_id=path.removeprefix('/data/articles/').removesuffix('.json')
             if not path.endswith('.json') or not self.allowed_article(user,article_id):self.json_response(403,{'message':'没有访问此文档的权限'});return
@@ -545,6 +576,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     accounts.initialize()
+    personal_documents.initialize()
     parser=argparse.ArgumentParser()
     parser.add_argument("--host",default=HOST)
     parser.add_argument("--port",type=int,default=PORT)

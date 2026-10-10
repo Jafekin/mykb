@@ -52,8 +52,8 @@
 }
 .external-bookmark-dialog input:focus,
 .external-bookmark-dialog textarea:focus {
-  outline: 3px solid #d38a6044;
-  border-color: #d38a60;
+  outline: 3px solid color-mix(in srgb, var(--accent) 27%, transparent);
+  border-color: var(--accent);
 }
 .external-bookmark-error {
   margin: 0;

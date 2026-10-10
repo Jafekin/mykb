@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from judge_tests import JUDGEABLE
 from config import CONTENT_ROOT, NOTES_ROOT
-from markdown_title import article_title
+from markdown_title import article_title, article_excerpt
 from content_cache import source_signature, cache_matches, build_lock, atomic_json
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -31,8 +31,13 @@ with build_lock(OUT / '.build.lock'):
     except (OSError, ValueError):
         previous = {}
     previous_items = {item['path']: item for item in previous.get('items', [])}
+    migration_file = PROJECT / 'scripts' / 'learning-path-migration.json'
+    learning_migrations = {
+        record['newPath']: record
+        for record in json.loads(migration_file.read_text())
+    } if migration_file.exists() else {}
     signature = source_signature(SECTIONS)
-    if previous.get('creationTimeVersion') == 1 and '--force' not in sys.argv and cache_matches(OUT / 'index.json', signature) and (OUT / 'articles').is_dir():
+    if previous.get('creationTimeVersion') == 2 and previous.get('excerptVersion') == 2 and '--force' not in sys.argv and cache_matches(OUT / 'index.json', signature) and (OUT / 'articles').is_dir():
         print(json.dumps({'cached': True, 'message': 'Source unchanged; using cached index'}))
         raise SystemExit(0)
     articles_dir = OUT / 'articles'
@@ -47,9 +52,16 @@ with build_lock(OUT / '.build.lock'):
             if identity in hashes:
                 paths[rel] = hashes[identity]; aliases += 1; continue
             article_id = hashlib.sha256(rel.encode()).hexdigest()[:16]
+            migration = learning_migrations.get(rel) if section == 'learning' else None
+            if migration:
+                article_id = migration['id']
+                paths[migration['path']] = article_id
             hashes[identity] = article_id; paths[rel] = article_id
             title = article_title(body, file.stem)
             category = file.parent.name if file.parent != root else '综合'
+            # Retain existing access grants while the UI no longer groups paths.
+            if migration:
+                category = migration['category']
             def field(name):
                 match = re.search(r'\*\*' + name + r'\*\*[：:]\s*([^\n]+)', body)
                 return match.group(1).strip() if match else ''
@@ -59,7 +71,7 @@ with build_lock(OUT / '.build.lock'):
             summary = ' '.join(summary.split())
             slug = next((key for key in JUDGEABLE if file.name.startswith(key + '-')), '') if section == 'problems' else ''
             file_stat = file.stat()
-            old = previous_items.get(rel, {})
+            old = previous_items.get(rel, {}) or migration or {}
             created_at = old.get('createdAt')
             if not created_at:
                 birth = getattr(file_stat, 'st_birthtime', 0)
@@ -72,12 +84,14 @@ with build_lock(OUT / '.build.lock'):
                 created_at = (datetime.fromtimestamp(birth, timezone.utc).isoformat()
                               if birth > 0 else old.get('modifiedAt') or
                               datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat())
+            if section == 'papers':
+                created_at = field('发布日期')
             item = dict(id=article_id, title=title, section=section, category=category, path=rel,
                         difficulty=field('难度'), date=field('发布日期') or field('发布时间'),
                         createdAt=created_at,
                         modifiedAt=datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat(),
                         isIndex=is_index, judgeable=slug in JUDGEABLE,
-                        excerpt=summary[len(title):].strip()[:180], search=summary.lower())
+                        excerpt=article_excerpt(body, prefer_summary=section == 'papers'), search=summary.lower())
             items.append(item)
             atomic_json(OUT / 'articles' / f'{article_id}.json', dict(id=article_id, body=body))
     note_files = PROJECT / 'dist' / 'note-files'
@@ -99,7 +113,7 @@ with build_lock(OUT / '.build.lock'):
     if note_files.exists():
         for asset in note_files.rglob('*'):
             if asset.is_file() and asset not in valid_assets: asset.unlink()
-    manifest = dict(creationTimeVersion=1, sourceSignature=signature, generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
+    manifest = dict(creationTimeVersion=2, excerptVersion=2, sourceSignature=signature, generatedAt=datetime.now(timezone.utc).isoformat(), sources=[str(SOURCE), str(NOTE_SOURCE)],
         items=items, paths=paths, aliases=aliases,
         sections=[dict(id=section, name=label, count=sum(item['section'] == section and not item['isIndex'] for item in items))
                   for section, _, label, _ in SECTIONS])

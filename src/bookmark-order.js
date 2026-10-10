@@ -8,7 +8,11 @@ export function sortBookmarks(local, external, saved) {
   ].sort((a, b) => {
     const time = (entry) =>
       timestamp(
-        entry.type === "local" ? saved[entry.item.id] : entry.item.addedAt,
+        entry.type === "local"
+          ? entry.item.personal
+            ? entry.item.createdAt
+            : saved[entry.item.id]
+          : entry.item.addedAt,
       );
     const delta = time(b) - time(a);
     if (delta) return delta;

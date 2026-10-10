@@ -29,7 +29,9 @@ export function sortEntries(entries, order, saved = {}) {
       field === "saved"
         ? type === "external"
           ? item.addedAt
-          : saved[item.id]
+          : item.personal
+            ? item.createdAt
+            : saved[item.id]
         : type === "external"
           ? item.addedAt
           : field === "created"

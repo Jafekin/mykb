@@ -16,7 +16,7 @@
     transform 0.15s;
 }
 .external-bookmark-card:hover {
-  border-color: #ce9f84;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   transform: translateY(-1px);
 }
 .external-bookmark-main {

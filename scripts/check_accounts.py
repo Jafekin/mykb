@@ -33,11 +33,34 @@ try:
  tags={'local:'+allowed['id']:['待读','技术']}
  assert call(guest,'/api/state',{'key':'savedTags','value':tags})[0]==200
  assert call(guest,'/api/state',{'key':'savedTags','value':{'local:x':['x'*31]}})[0]==400
+ assert call(guest,'/api/state',{'key':'accentTheme','value':'yellow'})[0]==200
+ assert call(guest,'/api/state',{'key':'accentTheme','value':'invalid'})[0]==400
  other=client();assert call(other,'/api/auth/login',{'username':username,'password':pw})[0]==200
  assert call(other,'/api/state')[1]['saved'][allowed['id']] is True
  assert call(other,'/api/state')[1]['savedTags']==tags
+ assert call(other,'/api/state')[1]['accentTheme']=='yellow'
+ assert not call(admin,'/api/state')[1].get('accentTheme')
  assert not call(admin,'/api/state')[1].get('savedTags')
  assert call(admin,'/api/state')[1].get('saved',{}).get(allowed['id']) is not True
+ # Personal documents remain private even from other administrators and bypass shared create permissions.
+ status, created = call(guest,'/api/articles',{'section':'saved','title':'我的私有笔记','category':'私有分类','body':'仅本账号可见的正文','user_id':1})
+ assert status == 201, created
+ identity=created['id']; document_path='/api/articles/'+identity
+ assert any(item['id']==identity and item['personal'] for item in call(other,'/data/index.json')[1]['items'])
+ assert all(item['id']!=identity for item in call(admin,'/data/index.json')[1]['items'])
+ for path in [document_path, '/data/articles/'+identity+'.json']:
+  assert call(admin,path)[0]==404
+  assert call(admin,path,method='HEAD')[0]==404
+  assert call(anon,path)[0]==401
+ status, source=call(other,document_path);assert status==200 and '仅本账号可见' in source['body']
+ assert call(admin,document_path,{'body':'不能改','revision':source['revision']})[0]==404
+ assert call(admin,document_path+'/delete',{'revision':source['revision']})[0]==404
+ assert call(guest,document_path,{'body':'更新后的私有正文','revision':'stale'})[0]==409
+ assert call(guest,document_path,{'body':'更新后的私有正文','revision':source['revision']})[0]==200
+ updated=call(other,document_path)[1];assert updated['body']=='更新后的私有正文'
+ assert call(guest,document_path+'/delete',{'revision':source['revision']})[0]==409
+ assert call(guest,document_path+'/delete',{'revision':updated['revision']})[0]==200
+ assert call(other,document_path)[0]==404
  assert call(guest,'/api/admin/users',{'action':'delete','id':1})[0]==403
  assert call(guest,'/api/state',{'key':'saved','value':{},'user_id':1})[0]==200
  assert call(admin,'/api/admin/users',{'action':'delete','id':user['id']})[0]==200

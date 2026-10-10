@@ -10,3 +10,9 @@ export function problemSubcategory(item) {
     ? "综合"
     : item.category;
 }
+
+export function documentCategory(item) {
+  const group = item.section === "problems" ? problemGroup(item) : "";
+  const label = group ? problemSubcategory(item) : item.category;
+  return { label, key: `${item.section}/${group ? group + "/" : ""}${label}` };
+}

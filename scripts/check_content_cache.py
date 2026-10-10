@@ -65,6 +65,22 @@ class CacheTests(unittest.TestCase):
         self.assertNotIn('cached', self.build())
         self.assertTrue(self.index()['items'][0]['createdAt'])
 
+    def test_paper_creation_time_uses_publication_date(self):
+        paper = self.root / 'knowledge-base/最新论文/paper.md'
+        paper.parent.mkdir(parents=True)
+        paper.write_text('# Paper\n\n**发布日期**：2024-01-15\n')
+        self.build()
+        item = next(item for item in self.index()['items'] if item['section'] == 'papers')
+        self.assertEqual(item['createdAt'], '2024-01-15')
+        paper.write_text('# Paper\n\n**发布日期**：2023-12-01\n')
+        self.build()
+        item = next(item for item in self.index()['items'] if item['section'] == 'papers')
+        self.assertEqual(item['createdAt'], '2023-12-01')
+        paper.write_text('# Paper\n\nNo publication date\n')
+        self.build()
+        item = next(item for item in self.index()['items'] if item['section'] == 'papers')
+        self.assertEqual(item['createdAt'], '')
+
     def test_assets_and_hidden_cache(self):
         output = self.root / 'dist/note-files/assets/picture.txt'
         before = output.stat().st_mtime_ns

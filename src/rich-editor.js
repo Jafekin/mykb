@@ -15,7 +15,12 @@ export function mountRichEditor(item, onSaved, onError) {
   const panel = document.querySelector("#markdown-editor"),
     toggle = document.querySelector("#edit-markdown");
   panel.innerHTML =
-    '<div class="markdown-editor-head"><div><h2>编辑文章</h2><p>直接编辑正文，保存到原始 Markdown 文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="editor-mode">Markdown 源码</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><p class="markdown-status" id="markdown-status" role="status">正在读取源文件…</p><div id="rich-editor"></div>';
+    '<div class="markdown-editor-head"><div><h2>编辑文章</h2><p>直接编辑正文，保存到原始 Markdown 文件。</p></div><div class="markdown-editor-actions"><button class="outline-button" id="editor-mode">所见即所得</button><button class="primary-button" id="save-markdown">保存修改</button></div></div><p class="markdown-status" id="markdown-status" role="status">正在读取源文件…</p><div id="rich-editor"></div>';
+  if (item.personal) {
+    panel.querySelector(".markdown-editor-head p").textContent =
+      "保存到你的个人文档，仅你可见。";
+    panel.querySelector("#markdown-status").textContent = "正在读取个人文档…";
+  }
   const status = panel.querySelector("#markdown-status"),
     save = panel.querySelector("#save-markdown"),
     mode = panel.querySelector("#editor-mode");
@@ -64,7 +69,7 @@ export function mountRichEditor(item, onSaved, onError) {
         el: panel.querySelector("#rich-editor"),
         height: "auto",
         minHeight: "500px",
-        initialEditType: "wysiwyg",
+        initialEditType: "markdown",
         initialValue: original,
         language: "zh-CN",
         hideModeSwitch: true,
@@ -90,7 +95,7 @@ export function mountRichEditor(item, onSaved, onError) {
           },
         },
       });
-      status.textContent = "已打开源文件";
+      status.textContent = item.personal ? "已打开个人文档" : "已打开源文件";
       current.hasUnsavedChanges = () => dirty;
       const destroy = current.destroy.bind(current);
       current.destroy = () => {
@@ -116,7 +121,9 @@ export function mountRichEditor(item, onSaved, onError) {
     saving = true;
     save.disabled = true;
     mode.disabled = true;
-    status.textContent = "正在保存源文件…";
+    status.textContent = item.personal
+      ? "正在保存个人文档…"
+      : "正在保存源文件…";
     try {
       const body = dirty ? current.getMarkdown() : original;
       const response = await fetch(`/api/articles/${item.id}`, {

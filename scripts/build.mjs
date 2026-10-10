@@ -17,9 +17,38 @@ await build({
   outdir: "dist/assets",
   splitting: true,
   chunkNames: "[name]-[hash]",
+  plugins: [
+    {
+      name: "editor-resize-lifecycle",
+      setup(builder) {
+        builder.onLoad(
+          { filter: /@toast-ui\/editor\/dist\/esm\/index\.js$/ },
+          async ({ path }) => {
+            const contents = await readFile(path, "utf8");
+            // Toast UI 3.2.2 leaves a trailing toolbar resize callback queued after
+            // destroy. Avoid rendering into a detached toolbar after closing/saving.
+            const target = "this.handleResize = throttle_1(function () {";
+            if (!contents.includes(target))
+              throw Error(
+                "Review Toast UI resize lifecycle patch after upgrading the editor",
+              );
+            return {
+              contents: contents.replace(
+                target,
+                target +
+                  "\n            if (!_this.refs.el || !_this.refs.el.isConnected) return;",
+              ),
+              loader: "js",
+            };
+          },
+        );
+      },
+    },
+  ],
 });
 for (const name of ["index.html", "style.css", "favicon.svg", "logo.svg"])
   await cp(`src/${name}`, `dist/${name}`);
+await cp("src/logo-warm.svg", "dist/assets/logo-warm.svg");
 try {
   await access("src/jkb-logo-v2.png");
   await cp("src/jkb-logo-v2.png", "dist/jkb-logo-v2.png");

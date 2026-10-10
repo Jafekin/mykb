@@ -260,6 +260,9 @@ body.dark .toastui-editor-defaultUI-toolbar button {
 .new-document-dialog::backdrop {
   background: #0007;
 }
+.new-document-dialog .document-fields label[hidden] {
+  display: none;
+}
 .new-document-dialog h2 {
   margin: 0;
   font-size: 22px;
@@ -269,6 +272,11 @@ body.dark .toastui-editor-defaultUI-toolbar button {
   grid-template-columns: 2fr 1fr 1.5fr;
   gap: 14px;
   margin: 20px 0;
+}
+@media (min-width: 701px) {
+  .document-fields:has(label[hidden]) {
+    grid-template-columns: 2fr 1fr;
+  }
 }
 .document-fields label {
   display: flex;
