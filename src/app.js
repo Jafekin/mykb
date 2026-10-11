@@ -108,10 +108,10 @@ function modifiedTime(item) {
 }
 const labels = {
   notes: "Note",
+  papers: "最新论文",
   learning: "学习路径",
   interview: "面试题",
   problems: "手撕题",
-  papers: "最新论文",
   saved: "我的收藏",
 };
 const english = {
